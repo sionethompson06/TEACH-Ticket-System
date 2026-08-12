@@ -1,0 +1,50 @@
+# TEACH Ticket System
+
+A secure, easy-to-use, system-wide service-request platform for TEACH Public Schools.
+
+## Purpose
+
+TEACH Ticket System gives every TEACH staff member one place to submit, track, and communicate about service requests. It routes each request to the correct department, preserves a complete communication and work history, calculates working-time service targets, and gives department staff and leadership real-time visibility into queues and performance — replacing informal and fragmented request channels with a single system of record.
+
+## Initial Launch Scope
+
+The first operational release supports two departments:
+
+- **Information Technology**
+- **Facilities**
+
+## Long-Term Vision
+
+The platform is designed as a system-wide service-request foundation. Beyond IT and Facilities, the architecture must support additional departments — including Academic Support, Business Office, Human Resources, Student Services, Communications, School Operations, and Data and Compliance — without redesigning the core ticket system. Each new department will be introduced with its own catalog, permissions, fields, and workflow, layered on top of the same shared platform.
+
+## Current Project Status
+
+**Phase 0 — Project Foundation and Service Design Documentation.**
+
+This phase establishes the project's written foundation only: organizational requirements, service-design decisions, and a phased implementation roadmap. No application code, dependencies, database, authentication, or UI exist yet. See [`docs/PHASE_PLAN.md`](docs/PHASE_PLAN.md) for what comes next.
+
+## Future Technical Direction (High-Level)
+
+The following direction is documented for planning purposes and will be implemented incrementally in later, approved phases:
+
+- **Next.js** web application
+- **TypeScript** throughout
+- **PostgreSQL** as the primary database
+- **Google Workspace** authentication (restricted to verified `@teachps.org` accounts)
+- **Server-enforced, role-based authorization** (never trust client-side checks alone)
+- **Vercel** deployment
+- **Secure Google Shared Drive attachment integration**, added only after the core workflow has been validated
+
+## Security Statement
+
+Credentials, passwords, temporary passwords, recovery codes, access tokens, student-sensitive information, and other secrets must **never** be committed to this repository — not in source code, configuration, fixtures, documentation, logs, or screenshots. Secrets belong in environment variables and managed secret storage only.
+
+## Documentation
+
+- [`docs/PROJECT_FOUNDATION.md`](docs/PROJECT_FOUNDATION.md) — organizational and service-design requirements (locations, authentication model, departments, categories, ticket lifecycle, priorities, roles, and security principles)
+- [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md) — confirmed decisions and open decisions requiring future resolution
+- [`docs/PHASE_PLAN.md`](docs/PHASE_PLAN.md) — the full phased implementation roadmap, from foundation through additional departments
+
+## Implementation Approach
+
+Implementation must proceed **one approved phase at a time**. Each phase is scoped, reviewed, and completed before the next phase begins — no phase may assume work beyond what has been explicitly approved.
