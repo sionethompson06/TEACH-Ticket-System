@@ -6,14 +6,14 @@ This document records the confirmed organizational and service-design requiremen
 
 The system recognizes the following service locations:
 
-| Code | Name | Grades / Function | Address |
-|---|---|---|---|
-| `TPE` | TEACH Prep Elementary School | TK–5 | 8505 S Western Ave, Los Angeles, CA 90047 |
-| `TAT-56` | TEACH Academy of Technologies — 5–6 Campus | 5–6 | 10000 S Western Ave, Los Angeles, CA 90047 |
-| `TAT-78` | TEACH Academy of Technologies — 7–8 Campus | 7–8 | 10045 S Western Ave, Los Angeles, CA 90047 |
-| `TTHS` | TEACH Tech Charter High School | 9–12 | 10616 S Western Ave, Los Angeles, CA 90047 |
-| `CMO` | TEACH Public Schools Central Management Organization | Central office | 10600 S Western Ave, Los Angeles, CA 90047 |
-| `SYSTEM` | Multiple campuses / system-wide | All | No single physical address |
+| Code     | Name                                                 | Grades / Function | Address                                    |
+| -------- | ---------------------------------------------------- | ----------------- | ------------------------------------------ |
+| `TPE`    | TEACH Prep Elementary School                         | TK–5              | 8505 S Western Ave, Los Angeles, CA 90047  |
+| `TAT-56` | TEACH Academy of Technologies — 5–6 Campus           | 5–6               | 10000 S Western Ave, Los Angeles, CA 90047 |
+| `TAT-78` | TEACH Academy of Technologies — 7–8 Campus           | 7–8               | 10045 S Western Ave, Los Angeles, CA 90047 |
+| `TTHS`   | TEACH Tech Charter High School                       | 9–12              | 10616 S Western Ave, Los Angeles, CA 90047 |
+| `CMO`    | TEACH Public Schools Central Management Organization | Central office    | 10600 S Western Ave, Los Angeles, CA 90047 |
+| `SYSTEM` | Multiple campuses / system-wide                      | All               | No single physical address                 |
 
 **`TAT-56` and `TAT-78` are separate service locations belonging to the same middle school** (TEACH Academy of Technologies). They have distinct addresses and serve different grade bands, so they must be selectable and reportable as independent service locations even though they share one school identity. The data model must keep school identity and physical service location distinct so that campus routing and reporting stay accurate.
 
@@ -22,7 +22,7 @@ The system recognizes the following service locations:
 - **Google Workspace is the identity provider.** Access is restricted to verified `@teachps.org` accounts.
 - Google Workspace is the **authoritative identity source**. The application must never generate, guess, or infer staff email addresses (e.g., from naming conventions) — identity always originates from a verified Google Workspace sign-in.
 - New authorized users receive the **Requester** role by default. Department and administrative roles always require explicit assignment by an authorized administrator.
-- **Authentication and application authorization are separate concerns.** Authentication (Google Workspace) confirms *who* a person is; authorization (application roles and permissions) governs *what* they may see or do. One does not imply the other.
+- **Authentication and application authorization are separate concerns.** Authentication (Google Workspace) confirms _who_ a person is; authorization (application roles and permissions) governs _what_ they may see or do. One does not imply the other.
 - All authorization checks must be enforced **on the server**. Client-side checks (hidden buttons, disabled controls) are a usability convenience only, never a security boundary.
 - Passwords, temporary passwords, MFA codes, recovery codes, and other credentials must never be stored or documented anywhere in this system.
 
@@ -53,15 +53,15 @@ The system recognizes the following service locations:
 
 ## 4. Initial IT Categories
 
-| Category | Representative Request Types |
-|---|---|
-| Student and Staff Devices | Chromebook damaged/not working; staff laptop damaged or slow/freezing; iPad/tablet issue; charging issue; new/replacement device; loaner request or return; lost device; device setup/reassignment; other |
-| Accounts, Identity, and Access | Google Workspace login issue; MFA issue; Aeries access; Clever access; application permission request; new staff account; access change; account deactivation; Shared Drive/folder access; other |
-| Classroom Technology and Audiovisual Equipment | Interactive display issue; projector issue; document camera issue; speaker/microphone issue; input or cable issue; video conference setup; other |
-| Network and Connectivity | Wi-Fi unavailable or slow; wired network issue; educational site blocked; content filtering review; remote access issue; multi-room or campus-wide outage; other |
-| Software, Applications, and Subscriptions | Google Classroom issue; supported platform issue; installation or update request; license request; testing browser issue; application error; new software evaluation request; other |
-| Printers and Peripherals | Printer outage/jam/toner/driver issue; scanner issue; keyboard/mouse/monitor issue; badge or barcode scanner issue; dock/adapter issue; new peripheral request; other |
-| IT Onboarding, Moves, and Special Events | New employee technology setup; employee departure/offboarding; staff or classroom move; classroom setup; testing-event technology support; assembly or special-event technology support; other |
+| Category                                       | Representative Request Types                                                                                                                                                                              |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Student and Staff Devices                      | Chromebook damaged/not working; staff laptop damaged or slow/freezing; iPad/tablet issue; charging issue; new/replacement device; loaner request or return; lost device; device setup/reassignment; other |
+| Accounts, Identity, and Access                 | Google Workspace login issue; MFA issue; Aeries access; Clever access; application permission request; new staff account; access change; account deactivation; Shared Drive/folder access; other          |
+| Classroom Technology and Audiovisual Equipment | Interactive display issue; projector issue; document camera issue; speaker/microphone issue; input or cable issue; video conference setup; other                                                          |
+| Network and Connectivity                       | Wi-Fi unavailable or slow; wired network issue; educational site blocked; content filtering review; remote access issue; multi-room or campus-wide outage; other                                          |
+| Software, Applications, and Subscriptions      | Google Classroom issue; supported platform issue; installation or update request; license request; testing browser issue; application error; new software evaluation request; other                       |
+| Printers and Peripherals                       | Printer outage/jam/toner/driver issue; scanner issue; keyboard/mouse/monitor issue; badge or barcode scanner issue; dock/adapter issue; new peripheral request; other                                     |
+| IT Onboarding, Moves, and Special Events       | New employee technology setup; employee departure/offboarding; staff or classroom move; classroom setup; testing-event technology support; assembly or special-event technology support; other            |
 
 ### Supported Systems (for reference — no credentials documented)
 
@@ -92,15 +92,15 @@ The following systems are within scope for IT technical-access and malfunction s
 
 ## 5. Initial Facilities Categories
 
-| Category | Representative Request Types |
-|---|---|
-| HVAC and Air Quality | Room too hot/cold; HVAC unit not operating; unusual noise; smoke or burning smell; thermostat issue; filter/air quality concern; other |
-| Electrical and Lighting | Interior/exterior light out; outlet issue; breaker tripped; sparking or smoke; power strip approval request; partial outage; other |
-| Plumbing and Water | Clogged fixture; active leak; ceiling stain; water fountain/filling station issue; no hot water; sewer odor or backup; flooding; other |
-| Custodial Services | Urgent or biohazard spill; trash/recycling overflow; restroom or area cleaning request; graffiti; supply request; other |
-| Building Maintenance | Broken glass; blinds issue; wall/ceiling/floor damage; paint request; furniture repair; cabinet/shelf issue; door issue; general repair; other |
-| Keys, Locks, and Access Control | Key request, lost, or broken key; badge issue; door schedule change; room/cabinet/locker lock issue; door latch or closer issue; other |
-| Safety, Security, and Grounds | Trip, playground, or field hazard; debris; landscaping request; pest issue; parking/crosswalk concern; fence/gate issue; other |
+| Category                          | Representative Request Types                                                                                                                             |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HVAC and Air Quality              | Room too hot/cold; HVAC unit not operating; unusual noise; smoke or burning smell; thermostat issue; filter/air quality concern; other                   |
+| Electrical and Lighting           | Interior/exterior light out; outlet issue; breaker tripped; sparking or smoke; power strip approval request; partial outage; other                       |
+| Plumbing and Water                | Clogged fixture; active leak; ceiling stain; water fountain/filling station issue; no hot water; sewer odor or backup; flooding; other                   |
+| Custodial Services                | Urgent or biohazard spill; trash/recycling overflow; restroom or area cleaning request; graffiti; supply request; other                                  |
+| Building Maintenance              | Broken glass; blinds issue; wall/ceiling/floor damage; paint request; furniture repair; cabinet/shelf issue; door issue; general repair; other           |
+| Keys, Locks, and Access Control   | Key request, lost, or broken key; badge issue; door schedule change; room/cabinet/locker lock issue; door latch or closer issue; other                   |
+| Safety, Security, and Grounds     | Trip, playground, or field hazard; debris; landscaping request; pest issue; parking/crosswalk concern; fence/gate issue; other                           |
 | Furniture, Moves, and Event Setup | Tables/chairs request; furniture move; lifting assistance; assembly/testing/board setup; stage, podium, or banner setup; delivery/storage request; other |
 
 ### Emergencies Are Not Ticket-Dependent
@@ -111,24 +111,24 @@ Active threats, fires, suspected gas leaks, dangerous electrical events, major f
 
 The IT and Facilities departments share one ticket lifecycle model:
 
-| Status | Meaning |
-|---|---|
-| Submitted | Recorded and routed; not yet reviewed by the department. |
-| Triaged | Department has validated category, impact, sensitivity, and priority. |
-| Assigned | A primary assignee has been designated and owns the next action. |
-| In Progress | Active work is underway. |
-| Waiting for Requester | The department needs a response from the requester before continuing. |
-| Waiting for Vendor | An external vendor dependency exists. |
-| Resolved | The department has supplied a resolution summary; awaiting requester confirmation. |
-| Closed | The ticket is finished — either the requester confirmed resolution, or the configured confirmation window elapsed without a reopen. |
-| Reopened | The requester (or authorized staff) reported that the issue was not actually resolved. |
-| Canceled | The ticket was withdrawn or is no longer needed. |
-| Duplicate | The ticket duplicates another ticket; linked to the canonical ticket. |
-| Referred to Another Department | The ticket's department/queue changed while its history is preserved. |
-| Converted to Project | The request has grown beyond normal ticket handling and is being tracked as a larger effort outside the standard SLA model. |
-| Emergency Escalation | The ticket has been flagged for immediate emergency handling in addition to (never instead of) emergency procedures. |
+| Status                         | Meaning                                                                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Submitted                      | Recorded and routed; not yet reviewed by the department.                                                                            |
+| Triaged                        | Department has validated category, impact, sensitivity, and priority.                                                               |
+| Assigned                       | A primary assignee has been designated and owns the next action.                                                                    |
+| In Progress                    | Active work is underway.                                                                                                            |
+| Waiting for Requester          | The department needs a response from the requester before continuing.                                                               |
+| Waiting for Vendor             | An external vendor dependency exists.                                                                                               |
+| Resolved                       | The department has supplied a resolution summary; awaiting requester confirmation.                                                  |
+| Closed                         | The ticket is finished — either the requester confirmed resolution, or the configured confirmation window elapsed without a reopen. |
+| Reopened                       | The requester (or authorized staff) reported that the issue was not actually resolved.                                              |
+| Canceled                       | The ticket was withdrawn or is no longer needed.                                                                                    |
+| Duplicate                      | The ticket duplicates another ticket; linked to the canonical ticket.                                                               |
+| Referred to Another Department | The ticket's department/queue changed while its history is preserved.                                                               |
+| Converted to Project           | The request has grown beyond normal ticket handling and is being tracked as a larger effort outside the standard SLA model.         |
+| Emergency Escalation           | The ticket has been flagged for immediate emergency handling in addition to (never instead of) emergency procedures.                |
 
-**Resolved vs. Closed:** *Resolved* means the department has finished its work and recorded a resolution summary, but the requester has not yet confirmed it — the ticket is still awaiting requester acknowledgment (or reopen) during a configured confirmation window. *Closed* means that confirmation step is complete: either the requester actively confirmed the resolution, or the confirmation window elapsed without a reopen. Only a Closed ticket is fully finished; a Resolved ticket can still become Reopened.
+**Resolved vs. Closed:** _Resolved_ means the department has finished its work and recorded a resolution summary, but the requester has not yet confirmed it — the ticket is still awaiting requester acknowledgment (or reopen) during a configured confirmation window. _Closed_ means that confirmation step is complete: either the requester actively confirmed the resolution, or the confirmation window elapsed without a reopen. Only a Closed ticket is fully finished; a Resolved ticket can still become Reopened.
 
 ## 7. Priority and Service Targets
 
@@ -140,12 +140,12 @@ The IT and Facilities departments share one ticket lifecycle model:
 
 ### Targets
 
-| Priority | First Response | Resolution / Work Target |
-|---|---|---|
-| Critical | Within 15 support minutes | Attend and begin stabilization immediately |
-| Urgent | Within 1 business hour | Resolve, or establish a documented plan, by end of workday |
-| Normal | Within 4 business hours | Resolve within 24–48 business hours |
-| Low | Within 1 business day | Resolve within 24–72 business hours |
+| Priority | First Response            | Resolution / Work Target                                   |
+| -------- | ------------------------- | ---------------------------------------------------------- |
+| Critical | Within 15 support minutes | Attend and begin stabilization immediately                 |
+| Urgent   | Within 1 business hour    | Resolve, or establish a documented plan, by end of workday |
+| Normal   | Within 4 business hours   | Resolve within 24–48 business hours                        |
+| Low      | Within 1 business day     | Resolve within 24–72 business hours                        |
 
 ### Rules
 
@@ -169,7 +169,7 @@ The IT and Facilities departments share one ticket lifecycle model:
 
 ### Visibility Rules
 
-- Staff can view: requests they submitted, requests submitted *for* them, and tickets they are explicitly authorized to follow.
+- Staff can view: requests they submitted, requests submitted _for_ them, and tickets they are explicitly authorized to follow.
 - Staff may submit a request on behalf of another employee, or for a different campus than their own.
 - The system must separately record `submitted_by`, `requested_for`, `primary_contact`, `affected_location`, and the list of authorized followers — these are distinct fields, not derived from one another.
 - Principals can view **nonconfidential** tickets for their assigned campus(es).

@@ -19,9 +19,31 @@ The platform is designed as a system-wide service-request foundation. Beyond IT 
 
 ## Current Project Status
 
-**Phase 0 — Project Foundation and Service Design Documentation.**
+**Phase 1 — Application Scaffold and Development-Quality Baseline.**
 
-This phase establishes the project's written foundation only: organizational requirements, service-design decisions, and a phased implementation roadmap. No application code, dependencies, database, authentication, or UI exist yet. See [`docs/PHASE_PLAN.md`](docs/PHASE_PLAN.md) for what comes next.
+Phase 0 established the project's written foundation (organizational requirements, service-design decisions, and a phased implementation roadmap). Phase 1 adds a minimal, feature-empty Next.js/TypeScript application shell with a development-quality baseline (linting, formatting, type checking, and automated tests). **No database, authentication, user accounts, roles, or ticket-system functionality exist yet.** See [`docs/PHASE_PLAN.md`](docs/PHASE_PLAN.md) for what comes next.
+
+## Prerequisites
+
+- Node.js 24 (LTS) — see [`.nvmrc`](.nvmrc)
+- npm
+
+## Quick Start
+
+```bash
+npm ci
+npm run dev
+```
+
+The app runs at http://localhost:3000.
+
+## Quality Check
+
+```bash
+npm run check
+```
+
+Runs formatting verification, linting, type checking, and the test suite. See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the full command reference, environment-file rules, and CI details.
 
 ## Future Technical Direction (High-Level)
 
@@ -44,6 +66,7 @@ Credentials, passwords, temporary passwords, recovery codes, access tokens, stud
 - [`docs/PROJECT_FOUNDATION.md`](docs/PROJECT_FOUNDATION.md) — organizational and service-design requirements (locations, authentication model, departments, categories, ticket lifecycle, priorities, roles, and security principles)
 - [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md) — confirmed decisions and open decisions requiring future resolution
 - [`docs/PHASE_PLAN.md`](docs/PHASE_PLAN.md) — the full phased implementation roadmap, from foundation through additional departments
+- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — local development setup, quality commands, and CI details
 
 ## Implementation Approach
 

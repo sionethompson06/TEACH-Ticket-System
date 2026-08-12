@@ -1,15 +1,15 @@
 # TEACH Ticket System — Phase Plan
 
-This document lays out the planned implementation phases for the TEACH Ticket System. **It is a plan, not an implementation.** No phase beyond Phase 0 has been started. Each phase must be explicitly approved before work begins, and each phase's Claude Code prompt must stop at its stated boundary.
+This document lays out the planned implementation phases for the TEACH Ticket System. **It is a plan, not an implementation** beyond what is explicitly marked completed below. Each phase must be explicitly approved before work begins, and each phase's Claude Code prompt must stop at its stated boundary.
 
-## Phase 0 — Project Foundation and Service-Design Documentation
+## Phase 0 — Project Foundation and Service-Design Documentation ✅ Completed
 
 - **Objective:** Establish the written organizational, service-design, and decision-tracking foundation the rest of the project will build on.
 - **Included scope:** `README.md`, `docs/PROJECT_FOUNDATION.md`, `docs/DECISION_LOG.md`, `docs/PHASE_PLAN.md`, and a preliminary `.gitignore`.
 - **Explicit exclusions:** Application scaffolding, UI, authentication, database, API routes, ticket submission, dashboards, email delivery, Drive integration, AI features, deployment configuration.
 - **Completion gate:** All four documentation files and the `.gitignore` exist, accurately reflect confirmed requirements, and contain no secrets or invented facts.
 
-## Phase 1 — Application Scaffold and Development-Quality Baseline
+## Phase 1 — Application Scaffold and Development-Quality Baseline ✅ Completed
 
 - **Objective:** Stand up an empty, deployable Next.js/TypeScript application shell with a working development and quality-check baseline.
 - **Included scope:** Next.js/TypeScript project structure, linting, formatting, type checking, a minimal health/status page, test framework setup, environment-variable pattern (no real secrets).

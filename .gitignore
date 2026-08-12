@@ -1,7 +1,5 @@
-# TEACH Ticket System — preliminary .gitignore
-# This is preliminary: no application has been scaffolded yet (see docs/PHASE_PLAN.md).
-# These patterns exist to prevent accidental commits of secrets and local/build artifacts
-# once later phases introduce them.
+# TEACH Ticket System — .gitignore
+# These patterns prevent accidental commits of secrets and local/build artifacts.
 
 # Environment / secrets
 .env
@@ -16,6 +14,7 @@ node_modules/
 out/
 dist/
 build/
+*.tsbuildinfo
 
 # Test coverage
 coverage/
