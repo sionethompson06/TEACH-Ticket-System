@@ -22,7 +22,7 @@ export default function Home() {
           </h2>
           <StatusIndicator label="Operational" />
           <p className="max-w-2xl text-base leading-7 text-slate-700 dark:text-slate-300">
-            Phase 1: Application scaffold operational.
+            Phase 2: Database foundation operational.
           </p>
         </section>
 
@@ -37,7 +37,8 @@ export default function Home() {
             The TEACH Ticket System will provide a secure, system-wide
             service-request platform for TEACH Public Schools staff. The initial
             planned departments are <strong>Information Technology</strong> and{" "}
-            <strong>Facilities</strong>.
+            <strong>Facilities</strong>. The PostgreSQL schema, migration
+            workflow, and TEACH location reference data are now established.
           </p>
         </section>
 
@@ -49,9 +50,9 @@ export default function Home() {
             Availability
           </h2>
           <p className="max-w-2xl text-base leading-7 text-slate-700 dark:text-slate-300">
-            Sign-in is not enabled yet. Ticket submission is not enabled yet.
-            This phase establishes the application scaffold and development
-            quality baseline only.
+            Sign-in is not enabled yet. Ticket submission is not enabled yet. No
+            live ticket or user data exists. This phase establishes the database
+            foundation only.
           </p>
         </section>
       </main>

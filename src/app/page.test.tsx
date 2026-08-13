@@ -10,11 +10,11 @@ describe("Home page", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the Phase 1 operational status", () => {
+  it("renders the Phase 2 operational status", () => {
     render(<Home />);
 
     expect(
-      screen.getByText(/phase 1: application scaffold operational/i),
+      screen.getByText(/phase 2: database foundation operational/i),
     ).toBeInTheDocument();
   });
 

@@ -19,6 +19,11 @@ build/
 # Test coverage
 coverage/
 
+# Local database files (PGlite is in-memory only; nothing should land here)
+*.pglite/
+pgdata/
+.drizzle/
+
 # Deployment
 .vercel/
 
