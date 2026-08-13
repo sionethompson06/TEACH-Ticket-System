@@ -19,9 +19,9 @@ The platform is designed as a system-wide service-request foundation. Beyond IT 
 
 ## Current Project Status
 
-**Phase 2 — PostgreSQL Database Foundation and Reference Data.**
+**Phase 3 — Google Workspace Authentication and First-Login User Provisioning.**
 
-Phase 0 established the project's written foundation; Phase 1 added a minimal, feature-empty Next.js/TypeScript application shell with a development-quality baseline. Phase 2 adds a provider-neutral PostgreSQL schema (Drizzle ORM/Drizzle Kit, versioned SQL migrations) and the canonical TEACH organization/school/service-location reference data. **Authentication and ticket workflows remain unimplemented — no users, roles, or tickets exist yet.** See [`docs/DATABASE.md`](docs/DATABASE.md) for the database foundation and [`docs/PHASE_PLAN.md`](docs/PHASE_PLAN.md) for what comes next.
+Phase 0 established the project's written foundation; Phase 1 added a minimal, feature-empty Next.js/TypeScript application shell with a development-quality baseline; Phase 2 added a provider-neutral PostgreSQL schema and canonical reference data. Phase 3 adds Google Workspace sign-in, restricted to verified `@teachps.org` accounts, and first-login provisioning of a fixed, nonprivileged **Requester** profile. **No department membership, elevated role or permission, or ticket workflow of any kind exists yet.** See [`docs/AUTHENTICATION.md`](docs/AUTHENTICATION.md) for the authentication foundation, [`docs/DATABASE.md`](docs/DATABASE.md) for the database foundation, and [`docs/PHASE_PLAN.md`](docs/PHASE_PLAN.md) for what comes next.
 
 ## Prerequisites
 
@@ -52,8 +52,8 @@ The following direction is documented for planning purposes and will be implemen
 - **Next.js** web application
 - **TypeScript** throughout
 - **PostgreSQL** as the primary database
-- **Google Workspace** authentication (restricted to verified `@teachps.org` accounts)
-- **Server-enforced, role-based authorization** (never trust client-side checks alone)
+- **Google Workspace** authentication (restricted to verified `@teachps.org` accounts) — implemented in Phase 3
+- **Server-enforced, role-based authorization** (never trust client-side checks alone) — beyond the fixed Requester role, not yet implemented
 - **Vercel** deployment
 - **Secure Google Shared Drive attachment integration**, added only after the core workflow has been validated
 
@@ -68,6 +68,7 @@ Credentials, passwords, temporary passwords, recovery codes, access tokens, stud
 - [`docs/PHASE_PLAN.md`](docs/PHASE_PLAN.md) — the full phased implementation roadmap, from foundation through additional departments
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) — local development setup, quality commands, and CI details
 - [`docs/DATABASE.md`](docs/DATABASE.md) — PostgreSQL schema, migration workflow, and canonical reference data
+- [`docs/AUTHENTICATION.md`](docs/AUTHENTICATION.md) — Google Workspace sign-in, identity verification, sessions, and first-login provisioning
 
 ## Implementation Approach
 

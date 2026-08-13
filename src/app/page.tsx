@@ -1,6 +1,10 @@
+import Link from "next/link";
 import { StatusIndicator } from "@/components/StatusIndicator";
+import { isAuthConfigured } from "@/auth/env";
 
 export default function Home() {
+  const configured = isAuthConfigured();
+
   return (
     <div className="flex flex-1 flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <header className="border-b border-slate-200 px-6 py-6 dark:border-slate-800 sm:px-10">
@@ -22,7 +26,7 @@ export default function Home() {
           </h2>
           <StatusIndicator label="Operational" />
           <p className="max-w-2xl text-base leading-7 text-slate-700 dark:text-slate-300">
-            Phase 2: Database foundation operational.
+            Phase 3: Google Workspace authentication operational.
           </p>
         </section>
 
@@ -37,8 +41,8 @@ export default function Home() {
             The TEACH Ticket System will provide a secure, system-wide
             service-request platform for TEACH Public Schools staff. The initial
             planned departments are <strong>Information Technology</strong> and{" "}
-            <strong>Facilities</strong>. The PostgreSQL schema, migration
-            workflow, and TEACH location reference data are now established.
+            <strong>Facilities</strong>. Staff can now sign in with a verified{" "}
+            <strong>@teachps.org</strong> Google Workspace account.
           </p>
         </section>
 
@@ -50,10 +54,23 @@ export default function Home() {
             Availability
           </h2>
           <p className="max-w-2xl text-base leading-7 text-slate-700 dark:text-slate-300">
-            Sign-in is not enabled yet. Ticket submission is not enabled yet. No
-            live ticket or user data exists. This phase establishes the database
-            foundation only.
+            Ticket submission is not enabled yet. Signing in creates only a{" "}
+            <strong>Requester</strong> profile — no elevated roles, departments,
+            or ticket functionality exist yet.
           </p>
+          {configured ? (
+            <Link
+              href="/sign-in"
+              className="inline-flex w-fit items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            >
+              Sign in with Google
+            </Link>
+          ) : (
+            <p className="max-w-2xl rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+              Authentication configuration pending. Sign-in is not available
+              yet.
+            </p>
+          )}
         </section>
       </main>
 

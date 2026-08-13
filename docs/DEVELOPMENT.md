@@ -1,6 +1,6 @@
 # Local Development — TEACH Ticket System
 
-This document covers local setup and day-to-day development commands, including the Phase 2 database foundation. It does not cover authentication or ticket functionality — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
+This document covers local setup and day-to-day development commands, including the Phase 2 database foundation and Phase 3 authentication. It does not cover ticket functionality, department membership, or any role/permission beyond the fixed Requester role — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
 
 ## Prerequisites
 
@@ -21,7 +21,7 @@ npm ci
 npm run dev
 ```
 
-The app starts at **http://localhost:3000**. The root route (`/`) renders a static application-status page — there is no sign-in, ticket submission, or other functional workflow yet.
+The app starts at **http://localhost:3000**. The root route (`/`) renders a static application-status page linking to `/sign-in` when Google Workspace authentication is configured (see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)) — there is no ticket submission or other functional workflow yet.
 
 ## Quality Commands
 
@@ -67,13 +67,13 @@ npm run start
 ## Environment Files
 
 - `.env.example` is tracked in the repository and documents environment-variable names and safe placeholders only.
-- Phase 2 introduces `DATABASE_URL` and `DATABASE_MIGRATION_URL` as documented placeholders — neither is required to build, test, or preview the application (see [`docs/DATABASE.md`](DATABASE.md)).
+- Phase 2 introduces `DATABASE_URL` and `DATABASE_MIGRATION_URL`; Phase 3 introduces `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` — all as documented placeholders only. None is required to build, test, or preview the application (see [`docs/DATABASE.md`](DATABASE.md) and [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)); sign-in itself renders a safe "configuration pending" notice when they are absent, instead of erroring.
 - Real values belong in a local, git-ignored file (e.g. `.env`, `.env.local`) or in managed deployment secrets — never in `.env.example` and never committed to source control.
-- **Never commit real credentials, tokens, keys, connection strings, or other secrets under any filename.**
+- **Never commit real credentials, tokens, keys, connection strings, OAuth client secrets, or other secrets under any filename.**
 
 ## What This Repository Does Not Yet Include
 
-The application remains intentionally feature-empty. It contains no authentication and no ticket-system functionality (submission, routing, queues, assignment, SLAs, email, attachments, etc.). A PostgreSQL schema, migration workflow, and reference data now exist (Phase 2), but no live production database has been provisioned. Later items are addressed in later, separately approved phases.
+The application remains intentionally minimal beyond sign-in. It contains no ticket-system functionality (submission, routing, queues, assignment, SLAs, email, attachments, etc.), no department membership, and no role or permission beyond the fixed Requester role every signed-in account receives. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work. Later items are addressed in later, separately approved phases.
 
 ## Continuous Integration
 

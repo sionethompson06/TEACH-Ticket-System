@@ -23,12 +23,13 @@ This document lays out the planned implementation phases for the TEACH Ticket Sy
 - **Explicit exclusions:** User accounts, authentication, ticket tables, department workflow tables.
 - **Completion gate:** Migrations run cleanly against a fresh database; seeded reference data matches `PROJECT_FOUNDATION.md`.
 
-## Phase 3 — Google Workspace Authentication and User Provisioning
+## Phase 3 — Google Workspace Authentication and User Provisioning — Implementation complete — live OAuth acceptance pending
 
 - **Objective:** Allow verified `@teachps.org` accounts to sign in, and provision a Requester-role profile on first sign-in.
 - **Included scope:** Google Workspace OAuth/OIDC sign-in, domain/verification checks, session handling, first-login user provisioning.
 - **Explicit exclusions:** Role/permission enforcement beyond default Requester, department or admin role assignment, ticket features.
 - **Completion gate:** Only verified `@teachps.org` accounts can sign in; personal/unverified accounts are denied; negative tests pass.
+- **Status:** The code foundation (schema, migration, identity-policy module, Better Auth configuration, routes/pages, and automated tests — see [`AUTHENTICATION.md`](AUTHENTICATION.md)) is complete and tested against a fresh in-memory database with no real credentials. The completion gate's live element — an actual Google Cloud OAuth client accepting a real `@teachps.org` sign-in against a deployed instance — has not been exercised in this session, because that requires a Google Cloud project and a live production database that were not authorized to be provisioned here. Live OAuth acceptance remains pending until a Google Cloud OAuth client and a deployed database are configured and a real sign-in is verified end-to-end.
 
 ## Phase 4 — Server-Enforced Roles and Permissions
 

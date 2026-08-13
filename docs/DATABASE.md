@@ -1,6 +1,6 @@
 # TEACH Ticket System — Database Foundation
 
-This document covers the Phase 2 database foundation: the PostgreSQL schema, migration workflow, and canonical reference data. It does not cover authentication, users, roles, or ticket functionality — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
+This document covers the Phase 2 database foundation: the PostgreSQL schema, migration workflow, and canonical reference data. Phase 3 added the authentication tables described briefly below; see [`AUTHENTICATION.md`](AUTHENTICATION.md) for the full authentication design. Neither phase includes role/permission enforcement beyond the fixed Requester role, department membership, or ticket functionality — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
 
 ## Dialect and Tooling
 
@@ -20,7 +20,7 @@ No managed PostgreSQL provider has been selected yet (see [`DECISION_LOG.md`](DE
 
 ## Phase 2 Tables
 
-Exactly three tables exist. No user, authentication, role, department, queue, ticket, comment, attachment, notification, or audit tables have been created.
+Exactly three reference-data tables exist. No department, queue, ticket, comment, attachment, notification, or audit table has been created.
 
 ### `organizations`
 
@@ -53,6 +53,10 @@ Seeded by `npm run db:seed` (see [`src/db/reference-data.ts`](../src/db/referenc
 `TAT-56` and `TAT-78` are two separate service-location records that both reference the same `TAT` school record — one school, two physical campuses, matching [`PROJECT_FOUNDATION.md`](PROJECT_FOUNDATION.md). `CMO` and `SYSTEM` have no school association; `SYSTEM` additionally has no physical address, matching its system-wide, nonphysical nature.
 
 Every reference record uses a **stable, hand-assigned UUID** that never changes between seed runs or environments.
+
+## Phase 3 Tables
+
+Four additional tables — `user`, `account`, `session`, and `verification` — support Google Workspace authentication and first-login provisioning. They are described fully in [`AUTHENTICATION.md`](AUTHENTICATION.md), including the `CHECK` constraints that fix every user to the canonical organization and the Requester role, forbid persisting any OAuth token or password, and forbid any provider other than `google`. No department, role beyond Requester, permission, or ticket-related table exists.
 
 ## Environment Variables
 
@@ -96,7 +100,7 @@ The seed is idempotent: it inserts any canonical record that's missing and safel
 npm run db:verify
 ```
 
-This runs `src/db/database-foundation.test.ts` against a completely fresh, in-memory PGlite instance: it applies the committed migrations, confirms only the three approved tables exist, runs the seed, verifies exact record counts and relationships, reseeds to confirm idempotency, and confirms the database itself rejects duplicate codes, invalid foreign keys, and invalid location-type structural combinations. No external credentials or real database are involved — this is how a fresh clone proves the schema and seed work correctly, in CI and locally alike.
+This runs `src/db/database-foundation.test.ts` against a completely fresh, in-memory PGlite instance: it applies the committed migrations, confirms only the seven approved tables exist (the three Phase 2 reference tables plus the four Phase 3 authentication tables), runs the seed, verifies exact record counts and relationships, reseeds to confirm idempotency, and confirms the database itself rejects duplicate codes, invalid foreign keys, invalid location-type structural combinations, and every authentication invariant described in [`AUTHENTICATION.md`](AUTHENTICATION.md). No external credentials or real database are involved — this is how a fresh clone proves the schema and seed work correctly, in CI and locally alike.
 
 ## Open Item
 
@@ -104,4 +108,4 @@ The **managed production PostgreSQL provider remains an open decision** (see [`D
 
 ## Explicitly Not Included
 
-Phase 2 contains **no authentication, no users, no roles, no permissions, and no tickets**. It is a database schema and reference-data foundation only.
+Beyond the fixed Requester role provisioned on first sign-in (Phase 3), the database contains **no department, no elevated role or permission, and no ticket-related table**. It remains a database schema, reference-data, and authentication foundation only.

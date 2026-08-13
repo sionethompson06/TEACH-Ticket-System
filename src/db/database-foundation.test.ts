@@ -4,7 +4,15 @@ import { drizzle, type PgliteDatabase } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import * as schema from "./schema";
-import { organizations, schools, serviceLocations } from "./schema";
+import {
+  account,
+  organizations,
+  schools,
+  serviceLocations,
+  session,
+  user,
+} from "./schema";
+import { REFERENCE_ORGANIZATION } from "./reference-data";
 import { seedReferenceData } from "./seed-reference-data";
 
 // Independently transcribed from docs/PROJECT_FOUNDATION.md Section 1, not
@@ -59,25 +67,31 @@ describe("database foundation", () => {
     await client.close();
   });
 
-  it("applies the committed migrations to a fresh database containing only the approved Phase 2 tables", async () => {
+  it("applies the committed migrations to a fresh database containing only the approved Phase 2 and Phase 3 tables", async () => {
     const result = await db.execute<{ table_name: string }>(sql`
       select table_name from information_schema.tables
       where table_schema = 'public' and table_type = 'BASE TABLE'
       order by table_name
     `);
     const tableNames = result.rows.map((row) => row.table_name);
+    // Exact list — this is also how we prove no department, permission,
+    // grant, ticket, queue, catalog, or other Phase 4+ table exists.
     expect(tableNames).toEqual([
+      "account",
       "organizations",
       "schools",
       "service_locations",
+      "session",
+      "user",
+      "verification",
     ]);
   });
 
-  it("applies both the 0000 and 0001 migrations, in order", async () => {
+  it("applies the 0000, 0001, and 0002 migrations, in order", async () => {
     const result = await db.execute<{ count: number }>(sql`
       select count(*)::int as count from drizzle.__drizzle_migrations
     `);
-    expect(result.rows[0]?.count).toBe(2);
+    expect(result.rows[0]?.count).toBe(3);
   });
 
   it("seeds exactly the canonical reference data with correct relationships and addresses", async () => {
@@ -307,5 +321,157 @@ describe("database foundation", () => {
       .returning();
 
     expect(row.addressLine2).toBe("Suite 200");
+  });
+
+  it("defaults a new user to the canonical TEACH organization and the requester base role", async () => {
+    const [row] = await db
+      .insert(user)
+      .values({
+        name: "Sample Staff Member",
+        email: "sample.staff@teachps.org",
+        emailVerified: true,
+      })
+      .returning();
+
+    expect(row.organizationId).toBe(REFERENCE_ORGANIZATION.id);
+    expect(row.baseRole).toBe("requester");
+  });
+
+  it("rejects a user with any base role other than requester", async () => {
+    await expect(
+      db.insert(user).values({
+        name: "Attempted Admin",
+        email: "attempted.admin@teachps.org",
+        emailVerified: true,
+        baseRole: "system_administrator",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a user whose email is not verified", async () => {
+    await expect(
+      db.insert(user).values({
+        name: "Unverified Person",
+        email: "unverified.person@teachps.org",
+        emailVerified: false,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a user whose email domain is not teachps.org", async () => {
+    await expect(
+      db.insert(user).values({
+        name: "Outside Person",
+        email: "outside.person@gmail.com",
+        emailVerified: true,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a duplicate Google provider account for the same subject", async () => {
+    const [owner] = await db
+      .insert(user)
+      .values({
+        name: "Duplicate Sub Owner",
+        email: "duplicate.sub.owner@teachps.org",
+        emailVerified: true,
+      })
+      .returning();
+
+    await db.insert(account).values({
+      accountId: "108000000000000000001",
+      providerId: "google",
+      userId: owner.id,
+    });
+
+    await expect(
+      db.insert(account).values({
+        accountId: "108000000000000000001",
+        providerId: "google",
+        userId: owner.id,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a provider account referencing a nonexistent user", async () => {
+    await expect(
+      db.insert(account).values({
+        accountId: "108000000000000000099",
+        providerId: "google",
+        userId: "00000000-0000-0000-0000-000000000000",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a session referencing a nonexistent user", async () => {
+    await expect(
+      db.insert(session).values({
+        token: "test-session-token-not-a-real-secret",
+        userId: "00000000-0000-0000-0000-000000000000",
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60),
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a provider account with a persisted access token, refresh token, id token, or password", async () => {
+    const [owner] = await db
+      .insert(user)
+      .values({
+        name: "Token Owner",
+        email: "token.owner@teachps.org",
+        emailVerified: true,
+      })
+      .returning();
+
+    await expect(
+      db.insert(account).values({
+        accountId: "108000000000000000002",
+        providerId: "google",
+        userId: owner.id,
+        accessToken: "should-never-be-persisted",
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.insert(account).values({
+        accountId: "108000000000000000003",
+        providerId: "google",
+        userId: owner.id,
+        refreshToken: "should-never-be-persisted",
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.insert(account).values({
+        accountId: "108000000000000000004",
+        providerId: "google",
+        userId: owner.id,
+        idToken: "should-never-be-persisted",
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.insert(account).values({
+        accountId: "108000000000000000005",
+        providerId: "google",
+        userId: owner.id,
+        password: "should-never-be-persisted",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects an account with a provider other than google", async () => {
+    const [owner] = await db
+      .select()
+      .from(user)
+      .where(eq(user.email, "token.owner@teachps.org"));
+
+    await expect(
+      db.insert(account).values({
+        accountId: "some-other-provider-account-id",
+        providerId: "github",
+        userId: owner.id,
+      }),
+    ).rejects.toThrow();
   });
 });

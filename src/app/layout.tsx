@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "TEACH Ticket System",
   description:
-    "TEACH Ticket System — a service-request platform for TEACH Public Schools. Phase 2 database foundation.",
+    "TEACH Ticket System — a service-request platform for TEACH Public Schools. Phase 3 Google Workspace authentication.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
