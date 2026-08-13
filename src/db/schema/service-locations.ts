@@ -83,6 +83,7 @@ export const serviceLocations = pgTable(
         (${table.locationType} = 'system_wide'
           AND ${table.schoolId} IS NULL
           AND ${table.addressLine1} IS NULL
+          AND ${table.addressLine2} IS NULL
           AND ${table.city} IS NULL
           AND ${table.state} IS NULL
           AND ${table.postalCode} IS NULL)

@@ -73,6 +73,13 @@ describe("database foundation", () => {
     ]);
   });
 
+  it("applies both the 0000 and 0001 migrations, in order", async () => {
+    const result = await db.execute<{ count: number }>(sql`
+      select count(*)::int as count from drizzle.__drizzle_migrations
+    `);
+    expect(result.rows[0]?.count).toBe(2);
+  });
+
   it("seeds exactly the canonical reference data with correct relationships and addresses", async () => {
     await seedReferenceData(db);
 
@@ -230,5 +237,75 @@ describe("database foundation", () => {
         postalCode: "00000",
       }),
     ).rejects.toThrow();
+  });
+
+  it("rejects a system-wide location with a non-null address_line2 even when every other address field is null", async () => {
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.code, "TEACHPS"));
+
+    await expect(
+      db.insert(serviceLocations).values({
+        organizationId: org.id,
+        code: "BADLINE2",
+        name: "Invalid system-wide location with address_line2 set",
+        locationType: "system_wide",
+        addressLine2: "Suite 100",
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("accepts a system-wide location only when every address field, including address_line2, is null", async () => {
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.code, "TEACHPS"));
+
+    const [row] = await db
+      .insert(serviceLocations)
+      .values({
+        organizationId: org.id,
+        code: "SYSTEMOK",
+        name: "Valid system-wide location",
+        locationType: "system_wide",
+      })
+      .returning();
+
+    expect(row.schoolId).toBeNull();
+    expect(row.addressLine1).toBeNull();
+    expect(row.addressLine2).toBeNull();
+    expect(row.city).toBeNull();
+    expect(row.state).toBeNull();
+    expect(row.postalCode).toBeNull();
+  });
+
+  it("allows an optional address_line2 on a physical school-campus location", async () => {
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.code, "TEACHPS"));
+    const [tatSchool] = await db
+      .select()
+      .from(schools)
+      .where(eq(schools.code, "TAT"));
+
+    const [row] = await db
+      .insert(serviceLocations)
+      .values({
+        organizationId: org.id,
+        schoolId: tatSchool.id,
+        code: "TAT-99",
+        name: "Physical location with address_line2",
+        locationType: "school_campus",
+        addressLine1: "123 Test Way",
+        addressLine2: "Suite 200",
+        city: "Los Angeles",
+        state: "CA",
+        postalCode: "90047",
+      })
+      .returning();
+
+    expect(row.addressLine2).toBe("Suite 200");
   });
 });
