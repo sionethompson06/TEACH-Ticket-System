@@ -6,8 +6,22 @@ Complete [`DEPLOYMENT.md`](DEPLOYMENT.md) first. This checklist assumes the appl
 
 ## Authentication
 
+Check the items under whichever access mode this deployment is running (see [`DEPLOYMENT.md`](DEPLOYMENT.md)).
+
+**If `AUTH_ACCESS_MODE=invite_only`:**
+
+- [ ] An invited Google account (any domain, including a personal Gmail account) can sign in successfully on its first attempt.
+- [ ] A noninvited Google account is denied sign-in, with a generic message that reveals nothing about who is or isn't invited.
+- [ ] A revoked pending invitation can no longer be used to sign in.
+- [ ] The sign-in page never claims a `@teachps.org` or any other domain restriction.
+
+**If `AUTH_ACCESS_MODE=workspace`:**
+
 - [ ] An authorized TEACH Google Workspace account can sign in successfully.
 - [ ] A personal (non-`@teachps.org`) Google account is denied sign-in.
+
+**Either mode:**
+
 - [ ] Sign Out works and ends the session.
 - [ ] Visiting a protected page while signed out redirects to sign-in and returns to the original page afterward.
 
@@ -38,6 +52,13 @@ Complete [`DEPLOYMENT.md`](DEPLOYMENT.md) first. This checklist assumes the appl
 - [ ] Deactivating a user immediately removes their access — a deactivated user cannot sign in to use protected pages.
 - [ ] A system administrator cannot deactivate their own account.
 - [ ] An ordinary (non-administrator) user cannot access `/admin`.
+
+**If `AUTH_ACCESS_MODE=invite_only`:** the Pilot Invitations section is visible on `/admin`.
+
+- [ ] A system administrator can create an invitation for a new tester's email address.
+- [ ] A system administrator can revoke a pending invitation, and the revoked invitation cannot be used to sign in afterward.
+- [ ] A duplicate pending invitation to the same address is rejected with a clear message.
+- [ ] No internal id, token, or provider identifier is shown anywhere in the Pilot Invitations section.
 
 ## Usability
 

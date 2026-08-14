@@ -1,4 +1,4 @@
-import { isAuthConfigured } from "@/auth/env";
+import { getAuthAccessModeOrNull, isAuthConfigured } from "@/auth/env";
 import { resolveSafeCallbackPath } from "@/auth/safe-redirect";
 import { GoogleSignInButton } from "./google-sign-in-button";
 
@@ -8,6 +8,10 @@ export default async function SignInPage({
   const resolvedSearchParams = await searchParams;
   const hasError = Boolean(resolvedSearchParams.error);
   const configured = isAuthConfigured();
+  // isAuthConfigured() already requires a valid AUTH_ACCESS_MODE, so this
+  // is only ever null when configured is false (and therefore unused).
+  const isInviteOnly =
+    configured && getAuthAccessModeOrNull()?.kind === "invite_only";
   const callbackPath = resolveSafeCallbackPath(
     resolvedSearchParams.callbackURL,
   );
@@ -22,24 +26,40 @@ export default async function SignInPage({
       </header>
 
       <main className="flex flex-1 flex-col gap-6 px-6 py-10 sm:px-10">
-        <p className="max-w-md text-base leading-7 text-slate-700 dark:text-slate-300">
-          This system is for TEACH Public Schools staff. Access is restricted to
-          verified <strong>@teachps.org Google Workspace accounts</strong>.
-          Personal Google accounts and other organizations&apos; accounts cannot
-          sign in.
-        </p>
-        <p className="max-w-md text-base leading-7 text-slate-700 dark:text-slate-300">
-          Once signed in, you can request IT or Facilities help and track your
-          requests.
-        </p>
+        {isInviteOnly ? (
+          <>
+            <p className="max-w-md text-base leading-7 text-slate-700 dark:text-slate-300">
+              Sign in with an invited Google account. Access is limited to
+              people invited by an administrator.
+            </p>
+            <p className="max-w-md text-base leading-7 text-slate-700 dark:text-slate-300">
+              Contact the system administrator if you need access.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="max-w-md text-base leading-7 text-slate-700 dark:text-slate-300">
+              This system is for TEACH Public Schools staff. Access is
+              restricted to verified{" "}
+              <strong>@teachps.org Google Workspace accounts</strong>. Personal
+              Google accounts and other organizations&apos; accounts cannot sign
+              in.
+            </p>
+            <p className="max-w-md text-base leading-7 text-slate-700 dark:text-slate-300">
+              Once signed in, you can request IT or Facilities help and track
+              your requests.
+            </p>
+          </>
+        )}
 
         {hasError && (
           <p
             role="alert"
             className="max-w-md rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-300"
           >
-            Sign-in was not completed. Please try again with an authorized
-            @teachps.org Google Workspace account.
+            {isInviteOnly
+              ? "Sign-in was not completed. Please try again with an invited Google account."
+              : "Sign-in was not completed. Please try again with an authorized @teachps.org Google Workspace account."}
           </p>
         )}
 

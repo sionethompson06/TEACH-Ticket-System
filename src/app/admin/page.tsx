@@ -1,15 +1,29 @@
 import Link from "next/link";
 import { FriendlyState } from "@/components/friendly-state";
 import { requireActiveActor } from "@/auth/current-actor";
+import { getAuthAccessModeOrNull } from "@/auth/env";
 import { authorize } from "@/authz/policy";
 import { getDb } from "@/db/client";
 import { listOrganizationUsers } from "@/admin/admin-queries";
+import { listInvitationsForAdmin } from "@/admin/invitations";
 import { AdminActionButton } from "./admin-action-button";
+import { CreateInvitationForm } from "./create-invitation-form";
 import {
+  revokeInvitationAction,
   setDepartmentMembershipAction,
   setSystemAdministratorAction,
   setUserActiveAction,
 } from "./actions";
+
+function formatInvitationDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(date);
+}
+
+const INVITATION_STATUS_LABELS: Record<string, string> = {
+  pending: "Pending",
+  accepted: "Accepted",
+  revoked: "Revoked",
+};
 
 function firstValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -48,6 +62,16 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     actor,
     search,
   );
+
+  // The Pilot Invitations section only ever appears while the deployment
+  // is running in invite_only access mode — in workspace mode there is
+  // nothing to invite (every eligible person already has a TEACH Google
+  // Workspace account), so the section is omitted entirely rather than
+  // shown disabled.
+  const isInviteOnlyMode = getAuthAccessModeOrNull()?.kind === "invite_only";
+  const invitations = isInviteOnlyMode
+    ? await listInvitationsForAdmin(getDb(), actor)
+    : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -232,6 +256,59 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
             );
           })}
         </ul>
+      )}
+
+      {isInviteOnlyMode && (
+        <div className="flex flex-col gap-4 border-t border-slate-200 pt-6 dark:border-slate-800">
+          <div>
+            <h2 className="text-xl font-bold sm:text-2xl">Pilot Invitations</h2>
+            <p className="mt-1 max-w-2xl text-base text-slate-600 dark:text-slate-400">
+              Invite a person to sign in with any verified Google account during
+              the pilot. Invitations are not sent by email — tell the invited
+              person directly to visit the sign-in page.
+            </p>
+          </div>
+
+          <CreateInvitationForm />
+
+          {invitations.length === 0 ? (
+            <p className="text-base text-slate-700 dark:text-slate-300">
+              No invitations yet.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-3" aria-label="Pilot invitations">
+              {invitations.map((invitation) => (
+                <li
+                  key={invitation.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-4 dark:border-slate-800"
+                >
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <span className="font-semibold">{invitation.email}</span>
+                    <AccessBadge>
+                      {INVITATION_STATUS_LABELS[invitation.status]}
+                    </AccessBadge>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      {invitation.status === "accepted" && invitation.acceptedAt
+                        ? `Accepted ${formatInvitationDate(invitation.acceptedAt)}`
+                        : invitation.status === "revoked" &&
+                            invitation.revokedAt
+                          ? `Revoked ${formatInvitationDate(invitation.revokedAt)}`
+                          : `Invited ${formatInvitationDate(invitation.createdAt)}`}
+                    </span>
+                  </div>
+
+                  {invitation.status === "pending" && (
+                    <AdminActionButton
+                      action={revokeInvitationAction.bind(null, invitation.id)}
+                      label="Revoke"
+                      pendingLabel="Revoking…"
+                    />
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );

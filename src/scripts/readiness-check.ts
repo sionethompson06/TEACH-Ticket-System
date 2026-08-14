@@ -6,7 +6,8 @@ Checks whether the application's environment configuration is structurally
 ready, without printing any secret values.
 
 Inspects: DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL,
-GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET.
+GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, AUTH_ACCESS_MODE (and
+AUTH_ALLOWED_DOMAIN, only required when AUTH_ACCESS_MODE=workspace).
 
 Prints a checklist of "ready", "not configured", or "invalid" for each
 item and exits with code 0 only if every item is ready. Never intended to

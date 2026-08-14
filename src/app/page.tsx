@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { StatusIndicator } from "@/components/StatusIndicator";
-import { isAuthConfigured } from "@/auth/env";
+import { getAuthAccessModeOrNull, isAuthConfigured } from "@/auth/env";
 
 export default function Home() {
   const configured = isAuthConfigured();
+  const isInviteOnly =
+    configured && getAuthAccessModeOrNull()?.kind === "invite_only";
 
   return (
     <div className="flex flex-1 flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -41,10 +43,10 @@ export default function Home() {
             The TEACH Ticket System is a secure, system-wide service-request
             platform for TEACH Public Schools staff, covering{" "}
             <strong>Information Technology</strong> and{" "}
-            <strong>Facilities</strong> requests. Staff sign in with a verified{" "}
-            <strong>@teachps.org</strong> Google Workspace account, submit a
-            request, and follow the conversation with the support team until
-            it&apos;s resolved.
+            <strong>Facilities</strong> requests.{" "}
+            {isInviteOnly
+              ? "Sign in with an invited Google account to submit a request and follow the conversation with the support team until it's resolved."
+              : "Staff sign in with a verified @teachps.org Google Workspace account, submit a request, and follow the conversation with the support team until it's resolved."}
           </p>
         </section>
 

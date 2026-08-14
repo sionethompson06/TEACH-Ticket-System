@@ -36,6 +36,13 @@
       "when": 1786687890689,
       "tag": "0004_sparkling_living_tribunal",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786703634224,
+      "tag": "0005_phase9a_invite_only_access",
+      "breakpoints": true
     }
   ]
 }

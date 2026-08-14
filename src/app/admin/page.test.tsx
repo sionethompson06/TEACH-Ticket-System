@@ -8,10 +8,18 @@ const { requireActiveActor } = vi.hoisted(() => ({
 const { listOrganizationUsers } = vi.hoisted(() => ({
   listOrganizationUsers: vi.fn(),
 }));
+const { getAuthAccessModeOrNull } = vi.hoisted(() => ({
+  getAuthAccessModeOrNull: vi.fn(),
+}));
+const { listInvitationsForAdmin } = vi.hoisted(() => ({
+  listInvitationsForAdmin: vi.fn(),
+}));
 
 vi.mock("@/auth/current-actor", () => ({ requireActiveActor }));
+vi.mock("@/auth/env", () => ({ getAuthAccessModeOrNull }));
 vi.mock("@/db/client", () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock("@/admin/admin-queries", () => ({ listOrganizationUsers }));
+vi.mock("@/admin/invitations", () => ({ listInvitationsForAdmin }));
 
 const REQUESTER = {
   status: "active",
@@ -198,5 +206,90 @@ describe("AdminPage", () => {
     await renderPage();
 
     expect(screen.getByText(/showing the first 200/i)).toBeInTheDocument();
+  });
+
+  describe("Pilot Invitations section", () => {
+    it("is hidden entirely in workspace mode", async () => {
+      requireActiveActor.mockResolvedValue(ADMIN);
+      listOrganizationUsers.mockResolvedValue({ users: [], truncated: false });
+      getAuthAccessModeOrNull.mockReturnValue({
+        kind: "workspace",
+        allowedDomain: "teachps.org",
+      });
+
+      await renderPage();
+
+      expect(
+        screen.queryByRole("heading", { name: /pilot invitations/i }),
+      ).not.toBeInTheDocument();
+      expect(listInvitationsForAdmin).not.toHaveBeenCalled();
+    });
+
+    it("is hidden when auth access mode is unset", async () => {
+      requireActiveActor.mockResolvedValue(ADMIN);
+      listOrganizationUsers.mockResolvedValue({ users: [], truncated: false });
+      getAuthAccessModeOrNull.mockReturnValue(null);
+
+      await renderPage();
+
+      expect(
+        screen.queryByRole("heading", { name: /pilot invitations/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the create-invitation form and an empty state in invite_only mode", async () => {
+      requireActiveActor.mockResolvedValue(ADMIN);
+      listOrganizationUsers.mockResolvedValue({ users: [], truncated: false });
+      getAuthAccessModeOrNull.mockReturnValue({ kind: "invite_only" });
+      listInvitationsForAdmin.mockResolvedValue([]);
+
+      await renderPage();
+
+      expect(
+        screen.getByRole("heading", { name: /pilot invitations/i }),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText(/email address/i)).toBeInTheDocument();
+      expect(screen.getByText(/no invitations yet/i)).toBeInTheDocument();
+    });
+
+    it("lists invitations with status and a Revoke action only for pending ones, with no internal id shown", async () => {
+      requireActiveActor.mockResolvedValue(ADMIN);
+      listOrganizationUsers.mockResolvedValue({ users: [], truncated: false });
+      getAuthAccessModeOrNull.mockReturnValue({ kind: "invite_only" });
+      listInvitationsForAdmin.mockResolvedValue([
+        {
+          id: "invitation-uuid-1",
+          email: "pending.person@example.com",
+          status: "pending",
+          createdAt: new Date("2026-08-01T00:00:00Z"),
+          acceptedAt: null,
+          revokedAt: null,
+        },
+        {
+          id: "invitation-uuid-2",
+          email: "accepted.person@example.com",
+          status: "accepted",
+          createdAt: new Date("2026-07-01T00:00:00Z"),
+          acceptedAt: new Date("2026-07-02T00:00:00Z"),
+          revokedAt: null,
+        },
+      ]);
+
+      const { container } = await renderPage();
+
+      expect(
+        screen.getByText("pending.person@example.com"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("accepted.person@example.com"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Pending")).toBeInTheDocument();
+      expect(screen.getByText("Accepted")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /^revoke$/i }),
+      ).toBeInTheDocument();
+      expect(container.textContent).not.toContain("invitation-uuid-1");
+      expect(container.textContent).not.toContain("invitation-uuid-2");
+    });
   });
 });

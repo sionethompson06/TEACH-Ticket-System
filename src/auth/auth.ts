@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { getDb } from "../db/client";
 import { buildBetterAuthOptions } from "./auth-options";
 import {
+  getAuthAccessMode,
   getBetterAuthBaseUrl,
   getBetterAuthSecret,
   getGoogleOAuthCredentials,
@@ -26,6 +27,7 @@ export function getAuth(): BetterAuthInstance {
         googleClientSecret: clientSecret,
         baseUrl: getBetterAuthBaseUrl(),
         secret: getBetterAuthSecret(),
+        accessMode: getAuthAccessMode(),
       }),
     );
   }

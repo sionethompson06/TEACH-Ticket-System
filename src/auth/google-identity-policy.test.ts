@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  evaluateGoogleInviteOnlyIdentity,
   evaluateGoogleWorkspaceIdentity,
   type TrustedGoogleProfile,
 } from "./google-identity-policy";
+
+const WORKSPACE_DOMAIN = "teachps.org";
 
 const VALID_PROFILE: TrustedGoogleProfile = {
   sub: "108234567890123456789",
@@ -13,7 +16,10 @@ const VALID_PROFILE: TrustedGoogleProfile = {
 
 describe("evaluateGoogleWorkspaceIdentity", () => {
   it("accepts a verified teachps.org Workspace profile", () => {
-    const result = evaluateGoogleWorkspaceIdentity(VALID_PROFILE);
+    const result = evaluateGoogleWorkspaceIdentity(
+      VALID_PROFILE,
+      WORKSPACE_DOMAIN,
+    );
     expect(result).toEqual({
       allowed: true,
       sub: VALID_PROFILE.sub,
@@ -22,12 +28,15 @@ describe("evaluateGoogleWorkspaceIdentity", () => {
   });
 
   it("normalizes email and hd casing/whitespace safely without weakening exact-domain comparison", () => {
-    const result = evaluateGoogleWorkspaceIdentity({
-      sub: "108234567890123456789",
-      email: "  Sample.Staff@TeachPS.ORG  ",
-      email_verified: true,
-      hd: " TeachPS.org ",
-    });
+    const result = evaluateGoogleWorkspaceIdentity(
+      {
+        sub: "108234567890123456789",
+        email: "  Sample.Staff@TeachPS.ORG  ",
+        email_verified: true,
+        hd: " TeachPS.org ",
+      },
+      WORKSPACE_DOMAIN,
+    );
     expect(result).toEqual({
       allowed: true,
       sub: "108234567890123456789",
@@ -132,7 +141,7 @@ describe("evaluateGoogleWorkspaceIdentity", () => {
 
   for (const { name, profile, reason } of denialCases) {
     it(`rejects: ${name}`, () => {
-      const result = evaluateGoogleWorkspaceIdentity(profile);
+      const result = evaluateGoogleWorkspaceIdentity(profile, WORKSPACE_DOMAIN);
       expect(result.allowed).toBe(false);
       if (!result.allowed) {
         expect(result.reason).toBe(reason);
@@ -141,15 +150,91 @@ describe("evaluateGoogleWorkspaceIdentity", () => {
   }
 
   it("does not expose sensitive profile details in a denial result", () => {
-    const result = evaluateGoogleWorkspaceIdentity({
-      sub: "108234567890123456789",
-      email: "person@gmail.com",
-      email_verified: true,
-      hd: "gmail.com",
-    });
+    const result = evaluateGoogleWorkspaceIdentity(
+      {
+        sub: "108234567890123456789",
+        email: "person@gmail.com",
+        email_verified: true,
+        hd: "gmail.com",
+      },
+      WORKSPACE_DOMAIN,
+    );
     expect(result.allowed).toBe(false);
     expect(Object.keys(result).sort()).toEqual(["allowed", "reason"]);
     expect(JSON.stringify(result)).not.toContain("person@gmail.com");
     expect(JSON.stringify(result)).not.toContain("108234567890123456789");
+  });
+});
+
+describe("evaluateGoogleInviteOnlyIdentity", () => {
+  it("accepts a verified personal Gmail profile (no domain/hd requirement)", () => {
+    const result = evaluateGoogleInviteOnlyIdentity({
+      sub: "108234567890123456789",
+      email: "person@gmail.com",
+      email_verified: true,
+    });
+    expect(result).toEqual({
+      allowed: true,
+      sub: "108234567890123456789",
+      email: "person@gmail.com",
+    });
+  });
+
+  it("accepts a verified profile from any Workspace domain, without an hd claim", () => {
+    const result = evaluateGoogleInviteOnlyIdentity({
+      sub: "108234567890123456789",
+      email: "person@another-school.org",
+      email_verified: true,
+    });
+    expect(result.allowed).toBe(true);
+  });
+
+  it("normalizes email casing and whitespace", () => {
+    const result = evaluateGoogleInviteOnlyIdentity({
+      sub: "108234567890123456789",
+      email: "  Person@Example.COM  ",
+      email_verified: true,
+    });
+    expect(result).toEqual({
+      allowed: true,
+      sub: "108234567890123456789",
+      email: "person@example.com",
+    });
+  });
+
+  it("rejects an unverified email", () => {
+    const result = evaluateGoogleInviteOnlyIdentity({
+      sub: "108234567890123456789",
+      email: "person@example.com",
+      email_verified: false,
+    });
+    expect(result).toEqual({ allowed: false, reason: "email_not_verified" });
+  });
+
+  it("rejects a missing subject", () => {
+    const result = evaluateGoogleInviteOnlyIdentity({
+      email: "person@example.com",
+      email_verified: true,
+    });
+    expect(result).toEqual({ allowed: false, reason: "missing_subject" });
+  });
+
+  it("rejects a malformed email", () => {
+    const result = evaluateGoogleInviteOnlyIdentity({
+      sub: "108234567890123456789",
+      email: "a@b@example.com",
+      email_verified: true,
+    });
+    expect(result).toEqual({ allowed: false, reason: "invalid_email" });
+  });
+
+  it("does not expose sensitive profile details in a denial result", () => {
+    const result = evaluateGoogleInviteOnlyIdentity({
+      sub: "108234567890123456789",
+      email: "person@example.com",
+      email_verified: false,
+    });
+    expect(result.allowed).toBe(false);
+    expect(Object.keys(result).sort()).toEqual(["allowed", "reason"]);
   });
 });

@@ -1,9 +1,11 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "../db/schema";
-import { user } from "../db/schema";
+import { account, authInvitations, user } from "../db/schema";
 import { REFERENCE_ORGANIZATION } from "../db/reference-data";
+import type { AuthAccessMode } from "../auth/access-mode";
+import { normalizeInviteEmail } from "../auth/invitations";
 
 // A separate, purpose-built path for designating the very first system
 // administrator — used only by the guarded src/db/scripts/admin-bootstrap.ts
@@ -12,6 +14,12 @@ import { REFERENCE_ORGANIZATION } from "../db/reference-data";
 // administrator exists yet to authorize the action, so this operates with
 // direct, operator-level database authority instead (see
 // docs/AUTHENTICATION.md and docs/DEPLOYMENT.md).
+//
+// Phase 9A: the eligibility rule for the target account now depends on the
+// deployment's AUTH_ACCESS_MODE — workspace mode preserves the original
+// exact-domain requirement; invite_only mode instead requires a linked
+// Google account and an accepted pilot invitation, and never requires any
+// particular email domain.
 
 type Database = NodePgDatabase<typeof schema> | PgliteDatabase<typeof schema>;
 
@@ -19,6 +27,7 @@ export interface BootstrapParams {
   email: string;
   confirmEmail?: string;
   apply: boolean;
+  accessMode: AuthAccessMode;
 }
 
 export type BootstrapOutcome =
@@ -32,28 +41,44 @@ export type BootstrapOutcome =
   | { kind: "no_change"; targetName: string; targetEmail: string }
   | { kind: "error"; reason: string };
 
-const TEACH_EMAIL_PATTERN = /^[^\s@]+@teachps\.org$/;
+function escapeForRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 // Exact, normalized match only — no wildcard, no case-insensitive domain
-// tricks, no subdomain allowance.
-export function normalizeTeachEmail(rawEmail: string): string | null {
-  const trimmed = rawEmail.trim().toLowerCase();
-  if (!TEACH_EMAIL_PATTERN.test(trimmed)) {
-    return null;
+// tricks, no subdomain allowance. In workspace mode the domain must match
+// AUTH_ALLOWED_DOMAIN exactly; in invite_only mode any valid-shape email is
+// accepted, since an invited address may belong to any domain.
+export function normalizeEmailForAccessMode(
+  rawEmail: string,
+  accessMode: AuthAccessMode,
+): string | null {
+  if (accessMode.kind === "invite_only") {
+    return normalizeInviteEmail(rawEmail);
   }
-  return trimmed;
+
+  const trimmed = rawEmail.trim().toLowerCase();
+  const domainPattern = new RegExp(
+    `^[^\\s@]+@${escapeForRegExp(accessMode.allowedDomain)}$`,
+  );
+  return domainPattern.test(trimmed) ? trimmed : null;
 }
 
 export async function bootstrapFirstSystemAdministrator(
   db: Database,
   params: BootstrapParams,
 ): Promise<BootstrapOutcome> {
-  const normalizedEmail = normalizeTeachEmail(params.email);
+  const normalizedEmail = normalizeEmailForAccessMode(
+    params.email,
+    params.accessMode,
+  );
   if (!normalizedEmail) {
     return {
       kind: "error",
       reason:
-        "The --email value must be an exact @teachps.org address, not a personal or malformed email.",
+        params.accessMode.kind === "workspace"
+          ? `The --email value must be an exact @${params.accessMode.allowedDomain} address, not a personal or malformed email.`
+          : "The --email value is not a valid email address.",
     };
   }
 
@@ -64,7 +89,10 @@ export async function bootstrapFirstSystemAdministrator(
         reason: "--confirm-email is required together with --apply.",
       };
     }
-    const normalizedConfirmEmail = normalizeTeachEmail(params.confirmEmail);
+    const normalizedConfirmEmail = normalizeEmailForAccessMode(
+      params.confirmEmail,
+      params.accessMode,
+    );
     if (!normalizedConfirmEmail || normalizedConfirmEmail !== normalizedEmail) {
       return {
         kind: "error",
@@ -82,7 +110,7 @@ export async function bootstrapFirstSystemAdministrator(
     return {
       kind: "error",
       reason:
-        "No user with that email has signed in yet. The target account must already exist from a successful Google Workspace sign-in before it can be designated as a system administrator.",
+        "No user with that email has signed in yet. The target account must already exist from a successful Google sign-in before it can be designated as a system administrator.",
     };
   }
 
@@ -100,6 +128,38 @@ export async function bootstrapFirstSystemAdministrator(
       reason:
         "That user does not belong to the canonical TEACH organization and cannot be made an administrator.",
     };
+  }
+
+  if (params.accessMode.kind === "invite_only") {
+    const [linkedGoogleAccount] = await db
+      .select()
+      .from(account)
+      .where(and(eq(account.userId, row.id), eq(account.providerId, "google")));
+    if (!linkedGoogleAccount) {
+      return {
+        kind: "error",
+        reason:
+          "That user has no linked Google account and cannot be made an administrator.",
+      };
+    }
+
+    const [acceptedInvitation] = await db
+      .select()
+      .from(authInvitations)
+      .where(
+        and(
+          eq(authInvitations.organizationId, REFERENCE_ORGANIZATION.id),
+          eq(authInvitations.acceptedByUserId, row.id),
+          eq(authInvitations.status, "accepted"),
+        ),
+      );
+    if (!acceptedInvitation) {
+      return {
+        kind: "error",
+        reason:
+          "That user does not have an accepted pilot invitation and cannot be made an administrator.",
+      };
+    }
   }
 
   if (row.isSystemAdministrator) {

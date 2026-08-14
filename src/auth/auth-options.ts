@@ -3,7 +3,16 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { verifyGoogleIdToken } from "better-auth/social-providers";
 import { REFERENCE_ORGANIZATION } from "../db/reference-data";
 import { account, session, user, verification } from "../db/schema";
-import { evaluateGoogleWorkspaceIdentity } from "./google-identity-policy";
+import type { AuthAccessMode } from "./access-mode";
+import {
+  evaluateGoogleInviteOnlyIdentity,
+  evaluateGoogleWorkspaceIdentity,
+} from "./google-identity-policy";
+import {
+  acceptPendingInvitation,
+  findPendingInvitation,
+  type Database as InvitationDatabase,
+} from "./invitations";
 
 export const TEACH_WORKSPACE_HOSTED_DOMAIN = "teachps.org";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 8; // 8 hours
@@ -19,6 +28,7 @@ export interface BuildBetterAuthOptionsParams {
   googleClientSecret: string;
   baseUrl: string;
   secret: string;
+  accessMode: AuthAccessMode;
 }
 
 // Pure function: given already-resolved dependencies, returns the plain
@@ -31,6 +41,7 @@ export function buildBetterAuthOptions({
   googleClientSecret,
   baseUrl,
   secret,
+  accessMode,
 }: BuildBetterAuthOptionsParams): BetterAuthOptions {
   return {
     baseURL: baseUrl,
@@ -80,7 +91,28 @@ export function buildBetterAuthOptions({
           // user is atomically pinned to the canonical TEACH organization
           // and the nonprivileged Requester role, regardless of anything
           // an OAuth profile or request body could otherwise supply.
+          //
+          // In invite_only mode, this is also the only point where a
+          // first-time sign-in can be denied provisioning entirely:
+          // returning `false` here aborts user creation (Better Auth's own
+          // create-with-hooks contract), so a noninvited Google account
+          // never receives a user row, an account link, or a session —
+          // Better Auth surfaces this as a generic "unable to create user"
+          // OAuth error, routed to the same friendly sign-in denial state
+          // as any other failed sign-in attempt.
           before: async (userRecord) => {
+            if (accessMode.kind === "invite_only") {
+              const email = String(userRecord.email ?? "").toLowerCase();
+              const invitation = await findPendingInvitation(
+                db as InvitationDatabase,
+                REFERENCE_ORGANIZATION.id,
+                email,
+              );
+              if (!invitation) {
+                return false;
+              }
+            }
+
             return {
               data: {
                 ...userRecord,
@@ -88,6 +120,19 @@ export function buildBetterAuthOptions({
                 baseRole: REQUESTER_BASE_ROLE,
               },
             };
+          },
+          // Marks the invitation this new user was just provisioned under
+          // as accepted. Safe under retry: acceptPendingInvitation only
+          // ever matches a still-pending row, so a duplicate call (or a
+          // call racing a concurrent one) is a harmless no-op.
+          after: async (createdUser) => {
+            if (accessMode.kind === "invite_only") {
+              await acceptPendingInvitation(db as InvitationDatabase, {
+                organizationId: REFERENCE_ORGANIZATION.id,
+                email: createdUser.email.toLowerCase(),
+                acceptedByUserId: createdUser.id,
+              });
+            }
           },
         },
       },
@@ -110,11 +155,19 @@ export function buildBetterAuthOptions({
         clientSecret: googleClientSecret,
         // Sent as the authorization-request hint AND enforced by Better
         // Auth against the verified callback profile — defense in depth
-        // alongside the custom getUserInfo check below.
-        hd: TEACH_WORKSPACE_HOSTED_DOMAIN,
+        // alongside the custom getUserInfo check below. Only sent at all
+        // in workspace mode: invite-only mode must never hint a hosted
+        // domain to Google, since an invited address may belong to any
+        // domain (or none, for a personal Gmail account).
+        ...(accessMode.kind === "workspace"
+          ? { hd: accessMode.allowedDomain }
+          : {}),
         prompt: "select_account",
         // Explicit, self-documenting minimal OIDC scope — independent of
         // whatever the library's own default scope list happens to be.
+        // Identical in both access modes: invite-only pilot access is
+        // still never a reason to request Gmail, Drive, Calendar, or
+        // offline-access scopes.
         disableDefaultScope: true,
         scope: ["openid", "email", "profile"],
         // Only the standard server-side authorization-code flow is
@@ -136,12 +189,19 @@ export function buildBetterAuthOptions({
             return null;
           }
 
-          const decision = evaluateGoogleWorkspaceIdentity({
+          const profile = {
             sub: claims.sub,
             email: claims.email,
             email_verified: claims.email_verified,
             hd: claims.hd,
-          });
+          };
+          const decision =
+            accessMode.kind === "workspace"
+              ? evaluateGoogleWorkspaceIdentity(
+                  profile,
+                  accessMode.allowedDomain,
+                )
+              : evaluateGoogleInviteOnlyIdentity(profile);
           if (!decision.allowed) {
             return null;
           }

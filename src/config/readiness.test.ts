@@ -8,6 +8,7 @@ const VALID_ENV: Record<string, string> = {
   BETTER_AUTH_URL: "https://tickets.teachps.org",
   GOOGLE_CLIENT_ID: "1234567890-abcdefghijklmnop.apps.googleusercontent.com",
   GOOGLE_CLIENT_SECRET: "GOCSPX-a-real-looking-secret-value",
+  AUTH_ACCESS_MODE: "invite_only",
 };
 
 describe("checkReadiness", () => {
@@ -162,5 +163,77 @@ describe("checkReadiness", () => {
     expect(serialized).not.toContain("unmistakable-secret-token-value-0001");
     expect(serialized).not.toContain("unmistakable-client-id-0002");
     expect(serialized).not.toContain("unmistakable-client-secret-0003");
+  });
+
+  it("reports Access mode as not configured when AUTH_ACCESS_MODE is missing", () => {
+    const env = { ...VALID_ENV };
+    delete (env as Record<string, string | undefined>).AUTH_ACCESS_MODE;
+    const result = checkReadiness(env);
+
+    const item = result.items.find((i) => i.label === "Access mode");
+    expect(item?.status).toBe("not configured");
+    expect(result.ready).toBe(false);
+  });
+
+  it("reports Access mode as invalid for an unknown value", () => {
+    const result = checkReadiness({ ...VALID_ENV, AUTH_ACCESS_MODE: "open" });
+
+    const item = result.items.find((i) => i.label === "Access mode");
+    expect(item?.status).toBe("invalid");
+  });
+
+  it("reports Access mode as ready for invite_only mode without requiring a domain", () => {
+    const result = checkReadiness({
+      ...VALID_ENV,
+      AUTH_ACCESS_MODE: "invite_only",
+    });
+
+    const item = result.items.find((i) => i.label === "Access mode");
+    expect(item?.status).toBe("ready");
+    expect(item?.detail).toMatch(/database invitations/i);
+  });
+
+  it("reports Access mode as invalid for workspace mode with no domain", () => {
+    const result = checkReadiness({
+      ...VALID_ENV,
+      AUTH_ACCESS_MODE: "workspace",
+    });
+
+    const item = result.items.find((i) => i.label === "Access mode");
+    expect(item?.status).toBe("invalid");
+  });
+
+  it("reports Access mode as invalid for workspace mode with a malformed domain", () => {
+    const result = checkReadiness({
+      ...VALID_ENV,
+      AUTH_ACCESS_MODE: "workspace",
+      AUTH_ALLOWED_DOMAIN: "not a domain",
+    });
+
+    const item = result.items.find((i) => i.label === "Access mode");
+    expect(item?.status).toBe("invalid");
+  });
+
+  it("reports Access mode as ready for workspace mode with a valid domain", () => {
+    const result = checkReadiness({
+      ...VALID_ENV,
+      AUTH_ACCESS_MODE: "workspace",
+      AUTH_ALLOWED_DOMAIN: "teachps.org",
+    });
+
+    const item = result.items.find((i) => i.label === "Access mode");
+    expect(item?.status).toBe("ready");
+  });
+
+  it("never echoes the configured AUTH_ALLOWED_DOMAIN value in the result", () => {
+    const result = checkReadiness({
+      ...VALID_ENV,
+      AUTH_ACCESS_MODE: "workspace",
+      AUTH_ALLOWED_DOMAIN: "unmistakable-domain-value.example",
+    });
+
+    expect(JSON.stringify(result)).not.toContain(
+      "unmistakable-domain-value.example",
+    );
   });
 });

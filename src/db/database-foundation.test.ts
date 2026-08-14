@@ -75,7 +75,7 @@ describe("database foundation", () => {
     await client.close();
   });
 
-  it("applies the committed migrations to a fresh database containing only the approved Phase 2 and Phase 3 tables", async () => {
+  it("applies the committed migrations to a fresh database containing only the approved tables", async () => {
     const result = await db.execute<{ table_name: string }>(sql`
       select table_name from information_schema.tables
       where table_schema = 'public' and table_type = 'BASE TABLE'
@@ -83,11 +83,13 @@ describe("database foundation", () => {
     `);
     const tableNames = result.rows.map((row) => row.table_name);
     // Exact list — this is also how we prove no SLA, queue, form-field, or
-    // other Phase 6+ table exists, and that Phase 5 is limited to exactly
-    // these four new tables (ticket_categories, tickets, ticket_comments,
-    // ticket_activity).
+    // other post-MVP table exists, that Phase 5 is limited to exactly four
+    // new tables (ticket_categories, tickets, ticket_comments,
+    // ticket_activity), and that Phase 9A adds exactly one new table
+    // (auth_invitations).
     expect(tableNames).toEqual([
       "account",
+      "auth_invitations",
       "department_memberships",
       "departments",
       "organizations",
@@ -103,11 +105,11 @@ describe("database foundation", () => {
     ]);
   });
 
-  it("applies the 0000, 0001, 0002, 0003, and 0004 migrations, in order", async () => {
+  it("applies the 0000 through 0005 migrations, in order", async () => {
     const result = await db.execute<{ count: number }>(sql`
       select count(*)::int as count from drizzle.__drizzle_migrations
     `);
-    expect(result.rows[0]?.count).toBe(5);
+    expect(result.rows[0]?.count).toBe(6);
   });
 
   it("seeds exactly the canonical reference data with correct relationships and addresses", async () => {
@@ -416,11 +418,38 @@ describe("database foundation", () => {
     ).rejects.toThrow();
   });
 
-  it("rejects a user whose email domain is not teachps.org", async () => {
-    await expect(
-      db.insert(user).values({
+  // Phase 9A: domain eligibility is enforced at the application layer
+  // (src/auth/google-identity-policy.ts), selected by AUTH_ACCESS_MODE —
+  // the database itself accepts any normalized, verified email so the same
+  // schema supports both the strict workspace mode and invite-only mode.
+  it("accepts a verified user with any normalized, valid-shape email domain", async () => {
+    const [row] = await db
+      .insert(user)
+      .values({
         name: "Outside Person",
         email: "outside.person@gmail.com",
+        emailVerified: true,
+      })
+      .returning();
+
+    expect(row.email).toBe("outside.person@gmail.com");
+  });
+
+  it("rejects a user whose email is not lowercase-normalized", async () => {
+    await expect(
+      db.insert(user).values({
+        name: "Mixed Case Person",
+        email: "Mixed.Case.Person@teachps.org",
+        emailVerified: true,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a user whose email has a malformed shape", async () => {
+    await expect(
+      db.insert(user).values({
+        name: "Malformed Email Person",
+        email: "not-an-email",
         emailVerified: true,
       }),
     ).rejects.toThrow();

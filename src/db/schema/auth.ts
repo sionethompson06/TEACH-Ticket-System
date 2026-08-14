@@ -65,11 +65,18 @@ export const user = pgTable(
       // fixed, hand-authored constant, not external input.
       sql`${table.organizationId} = ${sql.raw(`'${REFERENCE_ORGANIZATION.id}'`)}::uuid`,
     ),
+    // Phase 9A: domain eligibility (either the strict @teachps.org
+    // requirement or invite-only acceptance) is an application-layer
+    // decision (src/auth/google-identity-policy.ts) selected by the
+    // deployment's AUTH_ACCESS_MODE — it can no longer be a single static
+    // database constraint, since the same schema now supports either mode.
+    // Verification and lowercase normalization remain database-enforced
+    // regardless of mode.
     check(
-      "user_verified_teachps_email_check",
+      "user_verified_email_check",
       sql`${table.emailVerified} = true
         AND ${table.email} = lower(${table.email})
-        AND ${table.email} ~ '^[^@[:space:]]+@teachps\\.org$'`,
+        AND ${table.email} ~ '^[^@[:space:]]+@[^@[:space:]]+$'`,
     ),
   ],
 );

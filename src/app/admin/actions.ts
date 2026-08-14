@@ -8,6 +8,7 @@ import {
   setSystemAdministrator,
   setUserActive,
 } from "@/admin/admin-service";
+import { createInvitation, revokeInvitation } from "@/admin/invitations";
 import { AdminValidationError } from "@/admin/errors";
 
 // A "use server" file may only export async functions — the initial
@@ -125,4 +126,53 @@ export async function setSystemAdministratorAction(
       ? "Administrator access granted."
       : "Administrator access removed.",
   };
+}
+
+// Unbound — the email comes directly from the form field the administrator
+// typed into, unlike every other action above (which only ever act on a
+// server-rendered target id). createInvitation still re-validates and
+// normalizes the value itself; nothing here is trusted as-is.
+export async function createInvitationAction(
+  _previousState: AdminMutationState,
+  formData: FormData,
+): Promise<AdminMutationState> {
+  const actor = await requireActiveActor("/admin");
+  const email = String(formData.get("email") ?? "");
+
+  try {
+    await createInvitation(getDb(), actor, email);
+  } catch (error) {
+    return {
+      status: "error",
+      message: friendlyError(error, "We couldn't create that invitation."),
+    };
+  }
+
+  revalidateAdminPaths();
+  return {
+    status: "success",
+    message: "Invitation created. Tell them to visit the sign-in page.",
+  };
+}
+
+export async function revokeInvitationAction(
+  invitationId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by useActionState's (state, payload) action signature
+  _previousState: AdminMutationState,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- required by useActionState's (state, payload) action signature
+  _formData: FormData,
+): Promise<AdminMutationState> {
+  const actor = await requireActiveActor("/admin");
+
+  try {
+    await revokeInvitation(getDb(), actor, invitationId);
+  } catch (error) {
+    return {
+      status: "error",
+      message: friendlyError(error, "We couldn't revoke that invitation."),
+    };
+  }
+
+  revalidateAdminPaths();
+  return { status: "success", message: "Invitation revoked." };
 }

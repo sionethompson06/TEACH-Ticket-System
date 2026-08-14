@@ -1,31 +1,30 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { resolveAuthAccessMode } from "../../auth/access-mode";
-import { bootstrapFirstSystemAdministrator } from "../../admin/bootstrap";
+import { bootstrapInvitation } from "../../auth/invite-bootstrap";
 import * as schema from "../schema";
 import { getMigrationDatabaseUrl } from "../env";
 
-const HELP_TEXT = `Usage: npm run admin:bootstrap -- --email <address> [--confirm-email <address>] [--apply]
+const HELP_TEXT = `Usage: npm run access:invite -- --email <address> [--confirm-email <address>] [--apply]
 
-Designates an existing, active, TEACH-organization user as the first
-system administrator. The target user must have already signed in at
-least once through Google sign-in — this command never creates a user
-and never changes a user's organization. The target's eligibility
-requirements depend on the current AUTH_ACCESS_MODE: workspace mode
-requires an exact @<AUTH_ALLOWED_DOMAIN> address; invite_only mode
-requires a linked Google account and an accepted pilot invitation, and
-never requires any particular email domain.
+Creates a pilot invitation for invite_only access mode. An invited
+address may sign in once with any verified Google account (a personal
+Gmail account, or an account from any Google Workspace domain) and be
+provisioned as a plain requester — this command never creates a user and
+never grants agent or administrator access.
 
-Without --apply, this is a dry run: it reports what would change and
+Requires AUTH_ACCESS_MODE=invite_only in the current environment.
+
+Without --apply, this is a dry run: it reports what would happen and
 makes no changes. To make the real change, pass --apply together with
 --confirm-email set to the exact same address as --email.
 
 Examples:
-  npm run admin:bootstrap -- --email administrator@teachps.org
-  npm run admin:bootstrap -- --email administrator@teachps.org --confirm-email administrator@teachps.org --apply
+  npm run access:invite -- --email person@example.com
+  npm run access:invite -- --email person@example.com --confirm-email person@example.com --apply
 
 Options:
-  --email <address>          Required. The @teachps.org address to designate.
+  --email <address>          Required. The address to invite.
   --confirm-email <address>  Required together with --apply. Must exactly match --email.
   --apply                    Make the real change. Omit for a safe dry run.
   --help, -h                 Show this help message and exit.
@@ -55,6 +54,21 @@ function parseArgv(argv: string[]): ParsedArgs {
   return result;
 }
 
+function describeState(
+  state: "none" | "pending" | "accepted" | "revoked",
+): string {
+  switch (state) {
+    case "none":
+      return "no prior invitation existed for this address";
+    case "pending":
+      return "an invitation to this address is already pending";
+    case "accepted":
+      return "this address has already accepted an invitation";
+    case "revoked":
+      return "a previous invitation to this address was revoked";
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseArgv(process.argv.slice(2));
 
@@ -71,9 +85,9 @@ async function main(): Promise<void> {
   }
 
   const accessMode = resolveAuthAccessMode(process.env);
-  if (!accessMode) {
+  if (!accessMode || accessMode.kind !== "invite_only") {
     console.error(
-      "Error: AUTH_ACCESS_MODE must be set to a valid value (invite_only, or workspace with a valid AUTH_ALLOWED_DOMAIN) to use this command.",
+      "Error: AUTH_ACCESS_MODE must be set to invite_only to use this command.",
     );
     process.exitCode = 1;
     return;
@@ -82,7 +96,7 @@ async function main(): Promise<void> {
   const pool = new Pool({ connectionString: getMigrationDatabaseUrl() });
   try {
     const db = drizzle(pool, { schema });
-    const outcome = await bootstrapFirstSystemAdministrator(db, {
+    const outcome = await bootstrapInvitation(db, {
       email: args.email,
       confirmEmail: args.confirmEmail,
       apply: args.apply,
@@ -91,27 +105,27 @@ async function main(): Promise<void> {
 
     switch (outcome.kind) {
       case "dry_run":
-        if (outcome.alreadyAdministrator) {
+        if (outcome.wouldCreate) {
           console.log(
-            `[DRY RUN] ${outcome.targetName} <${outcome.targetEmail}> is already a system administrator. No changes are needed.`,
+            `[DRY RUN] Would create a pending invitation for ${outcome.email} (${describeState(outcome.currentState)}). No changes were made.`,
+          );
+          console.log(
+            `Re-run with --confirm-email ${outcome.email} --apply to make this change.`,
           );
         } else {
           console.log(
-            `[DRY RUN] Would grant system-administrator access to ${outcome.targetName} <${outcome.targetEmail}>. No changes were made.`,
-          );
-          console.log(
-            `Re-run with --confirm-email ${outcome.targetEmail} --apply to make this change.`,
+            `[DRY RUN] No change: ${describeState(outcome.currentState)} for ${outcome.email}.`,
           );
         }
         break;
-      case "applied":
+      case "created":
         console.log(
-          `System-administrator access granted to ${outcome.targetName} <${outcome.targetEmail}>.`,
+          `Pending invitation created for ${outcome.email} (${describeState(outcome.currentState)} beforehand). Tell them to visit the sign-in page.`,
         );
         break;
-      case "no_change":
+      case "unchanged":
         console.log(
-          `${outcome.targetName} <${outcome.targetEmail}> is already a system administrator. No changes were made.`,
+          `No changes made: ${describeState(outcome.currentState)} for ${outcome.email}.`,
         );
         break;
       case "error":
@@ -126,7 +140,7 @@ async function main(): Promise<void> {
 
 main().catch((error: unknown) => {
   console.error(
-    "Administrator bootstrap failed:",
+    "Pilot invitation command failed:",
     error instanceof Error ? error.message : "an unexpected error occurred",
   );
   process.exit(1);

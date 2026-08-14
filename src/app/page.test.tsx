@@ -8,6 +8,8 @@ const AUTH_ENV_KEYS = [
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
   "DATABASE_URL",
+  "AUTH_ACCESS_MODE",
+  "AUTH_ALLOWED_DOMAIN",
 ] as const;
 
 function clearAuthEnv() {
@@ -73,6 +75,7 @@ describe("Home page", () => {
       process.env.GOOGLE_CLIENT_ID = "test-client-id";
       process.env.GOOGLE_CLIENT_SECRET = "test-client-secret";
       process.env.DATABASE_URL = "postgresql://test-host/test-db";
+      process.env.AUTH_ACCESS_MODE = "invite_only";
     });
 
     it("provides the sign-in entry point", () => {
@@ -81,6 +84,31 @@ describe("Home page", () => {
       expect(
         screen.getByRole("link", { name: /sign in with google/i }),
       ).toHaveAttribute("href", "/sign-in");
+    });
+
+    it("never claims @teachps.org is required in invite_only mode", () => {
+      render(<Home />);
+
+      expect(screen.getByText(/invited google account/i)).toBeInTheDocument();
+      expect(screen.queryByText(/teachps\.org/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("with workspace access mode configured", () => {
+    beforeEach(() => {
+      process.env.BETTER_AUTH_SECRET = "test-secret-value-not-a-real-secret";
+      process.env.BETTER_AUTH_URL = "https://example-teach-ticket-system.test";
+      process.env.GOOGLE_CLIENT_ID = "test-client-id";
+      process.env.GOOGLE_CLIENT_SECRET = "test-client-secret";
+      process.env.DATABASE_URL = "postgresql://test-host/test-db";
+      process.env.AUTH_ACCESS_MODE = "workspace";
+      process.env.AUTH_ALLOWED_DOMAIN = "teachps.org";
+    });
+
+    it("still states the @teachps.org Workspace requirement", () => {
+      render(<Home />);
+
+      expect(screen.getByText(/@teachps\.org/i)).toBeInTheDocument();
     });
   });
 });

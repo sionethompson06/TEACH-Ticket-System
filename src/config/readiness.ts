@@ -1,3 +1,5 @@
+import { isValidAllowedDomain } from "../auth/access-mode";
+
 export type ReadinessStatus = "ready" | "not configured" | "invalid";
 
 export interface ReadinessCheckItem {
@@ -196,6 +198,57 @@ function checkGoogleOAuthConfiguration(
   return { label, status: "ready" };
 }
 
+function checkAccessMode(
+  rawMode: string | undefined,
+  rawAllowedDomain: string | undefined,
+): ReadinessCheckItem {
+  const label = "Access mode";
+  const mode = rawMode?.trim();
+
+  if (!mode) {
+    return { label, status: "not configured" };
+  }
+
+  if (mode !== "invite_only" && mode !== "workspace") {
+    return {
+      label,
+      status: "invalid",
+      detail: "AUTH_ACCESS_MODE must be either invite_only or workspace.",
+    };
+  }
+
+  if (mode === "invite_only") {
+    return {
+      label,
+      status: "ready",
+      detail:
+        "Invite-only mode: access is controlled by database invitations, not a domain restriction.",
+    };
+  }
+
+  const domain = rawAllowedDomain?.trim().toLowerCase();
+  if (!domain) {
+    return {
+      label,
+      status: "invalid",
+      detail: "Workspace mode requires AUTH_ALLOWED_DOMAIN to be set.",
+    };
+  }
+  if (!isValidAllowedDomain(domain)) {
+    return {
+      label,
+      status: "invalid",
+      detail: "AUTH_ALLOWED_DOMAIN is not a valid domain.",
+    };
+  }
+
+  return {
+    label,
+    status: "ready",
+    detail: "Workspace mode: access is restricted to the configured domain.",
+  };
+}
+
 // Pure function over a plain env-like object (never process.env directly)
 // so it can be exercised in tests with fully synthetic values — this is
 // the same validation the CLI wrapper in src/scripts/readiness-check.ts
@@ -212,6 +265,7 @@ export function checkReadiness(
       env.GOOGLE_CLIENT_ID,
       env.GOOGLE_CLIENT_SECRET,
     ),
+    checkAccessMode(env.AUTH_ACCESS_MODE, env.AUTH_ALLOWED_DOMAIN),
   ];
 
   return {
