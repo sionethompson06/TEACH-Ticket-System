@@ -84,6 +84,10 @@ The home page (`/`) links to `/sign-in` when the required environment variables 
 
 `/sign-in` accepts an optional `callbackURL` query parameter (e.g. `/sign-in?callbackURL=/requests/TKT-000001`) naming where to return the user after a successful sign-in — set automatically by every Phase 6 requester page (`src/auth/current-actor.ts`'s `requireActiveActor`) when it redirects an unauthenticated visitor. The value is validated by `resolveSafeCallbackPath` (`src/auth/safe-redirect.ts`): only a same-origin relative path (starting with a single `/`, never `//` or an embedded `://`) is honored; anything else, or a missing parameter, falls back to `/requests` — the normal destination after signing in. This prevents the parameter from being used as an open redirect to an external site.
 
+### Signing In Never Grants Elevated Access (Phase 8)
+
+Signing in through this flow — first-time or returning — only ever produces or updates the same fixed Requester profile described above; it never grants department-agent or system-administrator access on its own. Those are managed separately, after sign-in, at `/admin` by an existing system administrator (see [`DATABASE.md`](DATABASE.md) and [`DEVELOPMENT.md`](DEVELOPMENT.md)) — and the very first system administrator can only be designated by a direct, separately approved database operation, since `/admin` itself requires an administrator to already exist and sign in to use it. This repository's automated work never performs that operation and never will without explicit, separate approval.
+
 ## Configuration
 
 | Variable               | Purpose                                                                                           |

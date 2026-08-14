@@ -58,8 +58,9 @@ export default function Home() {
           <p className="max-w-2xl text-base leading-7 text-slate-700 dark:text-slate-300">
             After signing in, use <strong>Request Help</strong> to submit a
             request and <strong>My Requests</strong> to see its status and send
-            messages to the support team. Department support-team tools are not
-            built yet.
+            messages to the support team. IT and Facilities staff see an
+            additional Support Queue, and system administrators see People and
+            Access.
           </p>
           {configured ? (
             <Link

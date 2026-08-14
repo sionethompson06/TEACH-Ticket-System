@@ -89,4 +89,37 @@ describe("AppNav", () => {
       screen.getByRole("link", { name: /support queue/i }),
     ).toBeInTheDocument();
   });
+
+  it("shows the Administration link only for a system administrator", async () => {
+    getCurrentActor.mockResolvedValue({
+      status: "active",
+      userId: "admin-1",
+      organizationId: "org-1",
+      isSystemAdministrator: true,
+      departmentCodes: [],
+    });
+    render(await AppNav());
+
+    expect(
+      screen.getByRole("link", { name: /^administration$/i }),
+    ).toHaveAttribute("href", "/admin");
+  });
+
+  it("does not show the Administration link for a department agent who is not an administrator", async () => {
+    getCurrentActor.mockResolvedValue(IT_AGENT);
+    render(await AppNav());
+
+    expect(
+      screen.queryByRole("link", { name: /^administration$/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not show the Administration link for an ordinary requester", async () => {
+    getCurrentActor.mockResolvedValue(REQUESTER);
+    render(await AppNav());
+
+    expect(
+      screen.queryByRole("link", { name: /^administration$/i }),
+    ).not.toBeInTheDocument();
+  });
 });

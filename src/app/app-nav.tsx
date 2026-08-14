@@ -1,16 +1,18 @@
 import Link from "next/link";
-import { isSupportStaff } from "@/authz/policy";
+import { authorize, isSupportStaff } from "@/authz/policy";
 import { getCurrentActor } from "@/auth/current-actor";
 import { SignOutButton } from "@/app/account/sign-out-button";
 
-// Small, uncluttered nav shared by every authenticated page (both the
-// requester experience and the Phase 7 support workspace). Support Queue
-// only appears for a department agent or system administrator — visible
-// only for usability, since every /support route independently re-checks
-// authorization server-side regardless of what this nav shows.
+// Small, uncluttered nav shared by every authenticated page (the
+// requester experience, the Phase 7 support workspace, and the Phase 8
+// administration page). Support Queue and Administration only appear for
+// the roles that can use them — visible only for usability, since every
+// /support and /admin route independently re-checks authorization
+// server-side regardless of what this nav shows.
 export async function AppNav() {
   const actor = await getCurrentActor();
   const showSupportQueue = isSupportStaff(actor);
+  const showAdministration = authorize(actor, { kind: "administer" });
 
   return (
     <header className="border-b border-slate-200 dark:border-slate-800">
@@ -41,6 +43,14 @@ export async function AppNav() {
               className="text-sm font-medium text-slate-700 hover:underline dark:text-slate-300"
             >
               Support Queue
+            </Link>
+          )}
+          {showAdministration && (
+            <Link
+              href="/admin"
+              className="text-sm font-medium text-slate-700 hover:underline dark:text-slate-300"
+            >
+              Administration
             </Link>
           )}
           <Link

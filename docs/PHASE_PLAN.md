@@ -97,12 +97,23 @@ The longer-term authorization vision from `docs/PROJECT_FOUNDATION.md` is preser
 - **Completion gate:** An authorized department agent sees only their own department's active tickets by default, can open one, reply, assign it, and change its status/priority through the documented rules; a requester cannot reach the workspace; a closed ticket rejects every mutation and message, in the service layer as well as the UI.
 - **Status:** No real agents, administrators, or support-workspace data exist. Google Workspace live OAuth acceptance remains deferred exactly as stated in Phase 3 — this phase requested no credentials and added no bypass.
 
-## Phase 8 — Requester Communication and Internal Notes
+## Phase 8 — Minimal Administration and MVP Usability Polish ✅ Completed
 
-- **Objective:** Add public replies (requester-visible) and internal notes (department-only), with correct visibility enforcement.
-- **Included scope:** Public reply threads, internal notes, follower model, @mentions that never implicitly grant access.
-- **Explicit exclusions:** Email delivery of communications.
-- **Completion gate:** Internal notes never appear in any requester- or principal-facing view or API response, under adversarial testing.
+- **Objective:** Add one minimal administration page where an authorized system administrator can manage staff access, and complete a small usability/accessibility consistency pass across the existing MVP — nothing broader.
+- **Included scope:**
+  - A `/admin` route ("People and Access"), reachable only by an active system administrator (the existing `administer` authorization action from Phase 4) — an ordinary requester or department agent is denied identically whether they follow a link or type the URL directly, and the page is never listed for them in the shared navigation.
+  - For each canonical-organization user: display name, email, active/inactive status, requester status (always true — the fixed base role from Phase 3), IT agent access, Facilities agent access, and system-administrator status, sorted by name, with a bounded result limit and one server-validated name/email search field. No provider account id, Google subject, session data, token, or other authentication metadata is ever selected or rendered.
+  - Small server-action forms for exactly eight actions: add/remove IT access, add/remove Facilities access, activate/deactivate a user, and grant/remove system-administrator access — each with a pending state, a required confirmation before deactivating a user or granting/removing administrator access, and a concise success or friendly error message.
+  - A new `src/admin/` module (`admin-service.ts` for the eight mutations, `admin-queries.ts` for the user listing, `errors.ts`) built entirely on the existing `authorize()` action from Phase 4 — no new roles or permissions framework. Every mutation re-loads the target user, confirms both actor and target belong to the canonical organization, validates any department against live reference data, and ignores every browser-supplied role/organization claim.
+  - Explicit safeguards: an administrator can never deactivate their own account or remove their own administrator access; a duplicate membership addition and a missing-membership removal are both safe no-ops; deactivating a user never deletes their account, tickets, or comments, and immediately fails their next active-actor check on both the requester and support sides.
+  - A small consistency pass across every existing page (`/`, `/sign-in`, `/account`, `/requests`, `/requests/new`, `/requests/[ticketNumber]`, `/support`, `/support/[ticketNumber]`, `/admin`): consistent navigation labels (including capitalizing "Sign Out" to match the rest of the nav) and updated home-page copy reflecting that the Support Queue and People and Access pages now exist.
+- **Explicit exclusions:** Email/chat/Slack/SMS notifications, webhooks, background jobs and scheduled tasks, category/location/department creation or editing, custom fields or forms, workflow configuration, a broader user-management dashboard, and the first-real-administrator operational bootstrap (still a separately approved, later operational step).
+- **Completion gate:** An active system administrator can activate/deactivate a user, grant/remove IT or Facilities agent access, and grant/remove system-administrator access, with every change taking effect immediately and every safeguard holding under a forged actor or organization value; an ordinary requester or department agent is denied `/admin` outright.
+- **Status:** No real staff, agents, or administrators exist, and none was seeded. Google Workspace live OAuth acceptance and the first-administrator bootstrap both remain deferred exactly as stated in Phase 3 — this phase requested no credentials and added no bypass.
+
+### Deferred From the Original Phase 8 Slot (Post-MVP Backlog)
+
+An earlier draft of this plan tentatively named the Phase 8 slot "Requester Communication and Internal Notes." Public reply threads already exist (Phases 5–7); internal/private notes, a follower model, and access-safe @mentions remain unbuilt and are deferred to a future, separately approved phase, alongside notifications (Phase 12) and the other post-MVP items already tracked in `docs/DECISION_LOG.md`.
 
 ## Phase 9 — Principal Campus Visibility
 

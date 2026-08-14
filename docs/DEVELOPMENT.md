@@ -1,6 +1,6 @@
 # Local Development — TEACH Ticket System
 
-This document covers local setup and day-to-day development commands, including the Phase 2 database foundation, Phase 3 authentication, the Phase 4 minimal access-control model, the Phase 5 core ticket foundation (categories, tickets, comments, activity, and the server-only ticket service), the Phase 6 requester-facing experience (`/requests`, `/requests/new`, `/requests/[ticketNumber]`), and the Phase 7 IT/Facilities support workspace (`/support`, `/support/[ticketNumber]`). It does not cover department-manager roles, campus/principal grants, confidential-access grants, dashboards, or SLA calculations — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
+This document covers local setup and day-to-day development commands, including the Phase 2 database foundation, Phase 3 authentication, the Phase 4 minimal access-control model, the Phase 5 core ticket foundation (categories, tickets, comments, activity, and the server-only ticket service), the Phase 6 requester-facing experience (`/requests`, `/requests/new`, `/requests/[ticketNumber]`), the Phase 7 IT/Facilities support workspace (`/support`, `/support/[ticketNumber]`), and the Phase 8 minimal administration page (`/admin`). It does not cover department-manager roles, campus/principal grants, confidential-access grants, dashboards, notifications, or SLA calculations — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
 
 ## Prerequisites
 
@@ -38,7 +38,15 @@ A department agent (IT or Facilities) or system administrator additionally sees 
 | `/support`                | **Support Queue** — active tickets for the agent's own department(s), with Department/Location/Status/Assignment filters. |
 | `/support/[ticketNumber]` | The support workspace for one ticket: details, conversation, reply, assignment, status, priority, and activity history.   |
 
-Both require an active user with at least one department membership or system-administrator status — an ordinary requester gets a safe access-denied message at `/support` and a generic not-found page at `/support/[ticketNumber]`, and never sees the Support Queue link at all. There is still no dashboard, SLA timer, internal-notes feature, or admin configuration page (Phase 8+).
+Both require an active user with at least one department membership or system-administrator status — an ordinary requester gets a safe access-denied message at `/support` and a generic not-found page at `/support/[ticketNumber]`, and never sees the Support Queue link at all.
+
+A system administrator additionally sees an **Administration** link and has access to:
+
+| Route    | Purpose                                                                                                                           |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `/admin` | **People and Access** — activate/deactivate staff, grant/remove IT or Facilities agent access, grant/remove administrator access. |
+
+This requires an active system administrator specifically — an ordinary requester or a department agent who is not also an administrator gets the same safe access-denied message, whether they follow a link or type the URL directly, and never sees the Administration link at all. There is still no dashboard, SLA timer, internal-notes feature, or category/location/department administration (Phase 9+).
 
 ### Request Help and Send Message Behavior
 
@@ -61,13 +69,28 @@ The three support controls (assignment, status, priority) are small, separate Se
 
 A closed ticket hides all three controls and the Send Message form, on both `/support/[ticketNumber]` and the requester's own `/requests/[ticketNumber]`, replaced by a plain "this request is closed" message — and the same rule is enforced independently in the ticket service (`addTicketComment`, `updateTicketPriority`, and `assignTicket` all reject a closed ticket), so it holds even if a UI control were ever mistakenly left enabled.
 
+### Administration Behavior (Phase 8)
+
+`/admin` lists every user in the canonical organization — display name, email, active/inactive status, requester status (always "yes" — the fixed base role from Phase 3), IT agent access, Facilities agent access, and system-administrator status — sorted by name, capped at 200 results, with one optional server-side search field matching name or email. No provider account id, Google subject, session data, token, or other authentication metadata is ever selected from the database for this page, so none of it can leak into the UI by accident.
+
+Each row offers up to four small Server Action buttons, one per attribute, each showing only the direction that currently applies (e.g. a user without IT access sees "Add IT Access"; a user who already has it sees "Remove IT Access" instead of both at once):
+
+- **Add/Remove IT Access** and **Add/Remove Facilities Access** add or remove a `department_memberships` row — department membership already _is_ department-agent access; there is no separate "agent role" to manage. Adding an existing membership or removing a missing one are both safe no-ops.
+- **Activate User** / **Deactivate User** flips the same `is_active` flag every existing active-actor check already reads — a deactivated user fails their very next request on both the requester and support sides, but their account, tickets, and comments are never deleted.
+- **Grant Admin Access** / **Remove Admin Access** flips `is_system_administrator`. An administrator can never deactivate their own account or remove their own administrator access — both buttons are hidden for the acting administrator's own row, and the same rule is enforced in `src/admin/admin-service.ts` itself, not only in the UI.
+
+Deactivating a user and granting or removing administrator access all require a native confirmation (`window.confirm`) before submitting, since these are the actions most consequential to undo quickly; adding/removing department access and activating a user do not. Every button follows the same pending-state/disabled-while-submitting/friendly-error pattern as the rest of the app, and a successful mutation revalidates `/admin`, `/support`, and `/requests` together, since a membership or activation change can immediately change what those pages show.
+
+Building `/admin` grants no one administrator access on its own: the first real system administrator's designation remains a separately approved, manual database operation, exactly as already documented for Phase 3/4 (see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)).
+
 ### Accessibility Approach
 
-The Phase 6/7 pages reuse the existing Tailwind-based visual system (no new UI framework) and follow the same approach as the Phase 3 sign-in/account pages:
+The Phase 6/7/8 pages reuse the existing Tailwind-based visual system (no new UI framework) and follow the same approach as the Phase 3 sign-in/account pages:
 
-- Every form field has a visible, associated `<label>`; every error message is linked to its field with `aria-describedby` and announced via `role="alert"`.
-- Headings follow a logical order (page `<h1>`, section `<h2>`s) on every page, and interactive elements (links, buttons, radio/select inputs, filter forms) are reachable and operable by keyboard alone, using the browser's native focus indicators.
-- Status is never conveyed by color alone: the friendly status pill on My Requests, the requester ticket page, and the support queue/workspace all carry their own text, and a support-team message carries a visible "Support Team" text label (a requester's own message is labeled "Requester" on the support side) rather than relying on a background color to distinguish participants.
+- Every form field has a visible, associated `<label>`; every error message is linked to its field with `aria-describedby` and announced via `role="alert"`, and every admin-action success message is announced via `role="status"`.
+- Headings follow a logical order (page `<h1>`, section `<h2>`s) on every page, and interactive elements (links, buttons, radio/select inputs, filter and search forms) are reachable and operable by keyboard alone, using the browser's native focus indicators — no page sets `outline: none` or otherwise removes them.
+- Status is never conveyed by color alone: the friendly status pill on My Requests, the requester ticket page, and the support queue/workspace all carry their own text, a support-team message carries a visible "Support Team" text label (a requester's own message is labeled "Requester" on the support side) rather than relying on a background color to distinguish participants, and the People and Access badges ("Active"/"Inactive," "IT agent"/"No IT access," and so on) are plain bordered text with no color coding at all.
+- The shared navigation (`src/app/app-nav.tsx`) uses one consistent label style (Title Case) for every item, and shows Support Queue and Administration only to the roles that can use them, so a requester's navigation stays uncluttered.
 - Buttons and links are sized for comfortable touch targets, and there is no decorative animation, autoplay, or unnecessary motion — the support queue is a practical work list, not a dashboard.
 
 ## Quality Commands
@@ -120,7 +143,7 @@ npm run start
 
 ## What This Repository Does Not Yet Include
 
-The application remains intentionally minimal beyond sign-in, the Phase 4 access-control foundation, the Phase 5 ticket data model, the Phase 6 requester experience, and the Phase 7 support workspace. It contains no dashboards, charts, saved views, search, bulk actions, SLA/business-calendar calculation, internal/private notes, attachments, admin configuration pages, email/chat notifications, department-manager role, or confidential-access grant. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), a minimal Requester/Department-Agent/System-Administrator model exists (Phase 4), a core ticket data model with a server-only ticket service exists (Phase 5, see [`docs/DATABASE.md`](DATABASE.md)), a requester can sign in, request help, see My Requests, and send a message on their own ticket (Phase 6), and a department agent or system administrator can see their department's queue, open a ticket, reply, assign it, and change its status and priority (Phase 7) — but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work, and no real user, department membership, administrator, ticket, or comment has been created. Later items are addressed in later, separately approved phases.
+The application remains intentionally minimal beyond sign-in, the Phase 4 access-control foundation, the Phase 5 ticket data model, the Phase 6 requester experience, the Phase 7 support workspace, and the Phase 8 minimal administration page. It contains no dashboards, charts, saved views, bulk actions, SLA/business-calendar calculation, internal/private notes, attachments, category/location/department administration, custom fields or workflow configuration, email/chat/Slack/SMS notifications, webhooks, background jobs, department-manager role, or confidential-access grant. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), a minimal Requester/Department-Agent/System-Administrator model exists (Phase 4), a core ticket data model with a server-only ticket service exists (Phase 5, see [`docs/DATABASE.md`](DATABASE.md)), a requester can sign in, request help, see My Requests, and send a message on their own ticket (Phase 6), a department agent or system administrator can see their department's queue, open a ticket, reply, assign it, and change its status and priority (Phase 7), and a system administrator can activate/deactivate staff and manage IT/Facilities agent and administrator access at `/admin` (Phase 8) — but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work, and no real user, department membership, administrator, ticket, or comment has been created, seeded, or added. Later items are addressed in later, separately approved phases.
 
 ## Continuous Integration
 
