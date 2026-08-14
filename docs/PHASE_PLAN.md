@@ -115,12 +115,23 @@ The longer-term authorization vision from `docs/PROJECT_FOUNDATION.md` is preser
 
 An earlier draft of this plan tentatively named the Phase 8 slot "Requester Communication and Internal Notes." Public reply threads already exist (Phases 5–7); internal/private notes, a follower model, and access-safe @mentions remain unbuilt and are deferred to a future, separately approved phase, alongside notifications (Phase 12) and the other post-MVP items already tracked in `docs/DECISION_LOG.md`.
 
-## Phase 9 — Principal Campus Visibility
+## Phase 9 — MVP Release Readiness and Friendly Failure Handling ✅ Completed
 
-- **Objective:** Give principals a nonconfidential, campus-scoped view of tickets.
-- **Included scope:** Campus dashboard/list view, server-side enforcement of the nonconfidential/campus-scope boundary.
-- **Explicit exclusions:** Leadership aggregate views (Phase 10), confidential-ticket access of any kind.
-- **Completion gate:** Cross-role and cross-campus data-leak tests pass, including direct URL/ID manipulation attempts.
+- **Objective:** Prepare the already-built MVP for a safe production setup and a controlled pilot — no new help-desk feature, and no live infrastructure change.
+- **Included scope:**
+  - Friendly, plain-language states for every unexpected-error, not-found, access-denied, authentication-unavailable, and empty-list case, using one small shared component (`src/components/friendly-state.tsx`) rather than a design system: a root `error.tsx` (segment-level error boundary), `global-error.tsx` (root-layout crash fallback), and a root `not-found.tsx`, plus the existing `/support` and `/admin` access-denied blocks and the ticket-specific not-found pages refactored onto the same component. No stack trace, SQL error, environment-variable name, provider error, internal UUID, or secret is ever shown to a user.
+  - Sign-in copy that clearly states the system is for TEACH staff, requires a TEACH `@teachps.org` Google Workspace account, does not permit personal Google accounts, and that staff can request IT or Facilities help once signed in — plus a friendly, retryable failure state if starting sign-in fails client-side, and the existing "configuration pending" state preserved when authentication isn't configured.
+  - A safe environment-readiness command (`npm run readiness:check`, `src/config/readiness.ts`) that inspects `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` for structural validity and prints a `ready`/`not configured`/`invalid` checklist — never a value — with a clear nonzero exit code on any failure. Deliberately excluded from `npm run check` since CI runs without production secrets.
+  - A guarded first-system-administrator bootstrap command (`npm run admin:bootstrap`, `src/admin/bootstrap.ts`) defaulting to a dry run, requiring `--apply` with a matching `--confirm-email` for a real change, accepting only an exact normalized `@teachps.org` address, requiring the target to already exist (from a real sign-in), be active, and belong to the canonical TEACH organization, never creating a user or changing an organization, and idempotent if the target is already a system administrator.
+  - `docs/DEPLOYMENT.md` (the full sequential production setup order) and `docs/PILOT_CHECKLIST.md` (a short authentication/requester/support/administration/usability checklist with a tester/date/result/issue/follow-up recording table).
+  - A final usability/accessibility verification pass across all nine routes, correcting two small gaps found: `/account` had no shared navigation (added `src/app/account/layout.tsx`), and the Google sign-in button had no failure handling if starting sign-in failed client-side (added a friendly, retryable error state).
+- **Explicit exclusions:** Any new help-desk feature (notifications, attachments, internal notes, reports, search, SLA calculations, additional departments/roles/categories/locations, integrations, AI features, demo data); any live infrastructure change (a real production database, Google Cloud OAuth client, or Vercel environment variable); any real user, ticket, or administrator; running the bootstrap command against a real database; and actually executing the pilot checklist.
+- **Completion gate:** Every friendly state shows plain language with no internal detail; the readiness command never prints a supplied secret value and exits nonzero on missing/invalid configuration; the bootstrap command never mutates data without explicit `--apply`+`--confirm-email`, never creates a user, never changes an organization, and is idempotent; all existing requester/support/administration workflows and the secretless build remain green.
+- **Status:** Code-side MVP release readiness complete — live infrastructure, OAuth acceptance, first-administrator bootstrap, and pilot execution deferred.
+
+### Deferred From the Original Phase 9 Slot (Post-MVP Backlog)
+
+An earlier draft of this plan tentatively named the Phase 9 slot "Principal Campus Visibility" — giving principals a nonconfidential, campus-scoped view of tickets (a campus dashboard/list view with server-side enforcement of the nonconfidential/campus-scope boundary, excluding leadership aggregate views and confidential-ticket access of any kind, gated on cross-role and cross-campus data-leak tests including direct URL/ID manipulation attempts). This remains unbuilt and is deferred to a future, separately approved phase, alongside the other post-MVP items already tracked in `docs/DECISION_LOG.md`.
 
 ## Phase 10 — SLA Calculations and Dashboards
 

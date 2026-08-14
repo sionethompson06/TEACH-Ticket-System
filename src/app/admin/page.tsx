@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FriendlyState } from "@/components/friendly-state";
 import { requireActiveActor } from "@/auth/current-actor";
 import { authorize } from "@/authz/policy";
 import { getDb } from "@/db/client";
@@ -32,21 +33,11 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   // check passes.
   if (!authorize(actor, { kind: "administer" })) {
     return (
-      <div className="flex flex-col items-start gap-4">
-        <h1 className="text-2xl font-bold sm:text-3xl">
-          Administration access
-        </h1>
-        <p className="max-w-md text-base leading-7 text-slate-600 dark:text-slate-400">
-          You don&apos;t have access to this page. If you believe this is a
-          mistake, contact your system administrator.
-        </p>
-        <Link
-          href="/requests"
-          className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
-        >
-          Back to My Requests
-        </Link>
-      </div>
+      <FriendlyState
+        title="Administration access"
+        message="You don't have access to this page. If you believe this is a mistake, contact your system administrator."
+        actions={[{ label: "Back to My Requests", href: "/requests" }]}
+      />
     );
   }
 

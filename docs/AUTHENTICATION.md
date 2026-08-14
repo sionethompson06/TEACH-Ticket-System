@@ -88,6 +88,14 @@ The home page (`/`) links to `/sign-in` when the required environment variables 
 
 Signing in through this flow — first-time or returning — only ever produces or updates the same fixed Requester profile described above; it never grants department-agent or system-administrator access on its own. Those are managed separately, after sign-in, at `/admin` by an existing system administrator (see [`DATABASE.md`](DATABASE.md) and [`DEVELOPMENT.md`](DEVELOPMENT.md)) — and the very first system administrator can only be designated by a direct, separately approved database operation, since `/admin` itself requires an administrator to already exist and sign in to use it. This repository's automated work never performs that operation and never will without explicit, separate approval.
 
+### First-Administrator Bootstrap Command (Phase 9)
+
+That "direct, separately approved database operation" is `npm run admin:bootstrap` (`src/admin/bootstrap.ts`, invoked by `src/db/scripts/admin-bootstrap.ts`) — a guarded command, not an ad hoc query. It defaults to a dry run, requires an explicit `--apply` together with a matching `--confirm-email`, only ever designates an already-existing active `@teachps.org` user from the canonical TEACH organization (never creates a user, never changes an organization), and is idempotent. See [`DEPLOYMENT.md`](DEPLOYMENT.md) for the full safeguards and the sequential deployment steps that use it. Running it against a real database remains a separately approved operational step — it is not performed as part of this repository's automated work.
+
+### Friendly Sign-In and Authentication-Unavailable States (Phase 9)
+
+`/sign-in` always states, in plain language, that the system is for TEACH staff, that sign-in requires a TEACH `@teachps.org` Google Workspace account, that personal Google accounts are not permitted, and that staff can request IT or Facilities help once signed in. If authentication is not configured (`isAuthConfigured()` returns `false`), the page shows a generic "Sign-in is not available yet" notice instead of a broken button — it never states which environment variable is missing. A failed sign-in attempt (whether the identity provider denies it, producing the existing `?error=1` redirect, or the client-side request to start sign-in fails outright) always shows a generic, safe message and leaves the page in a retryable state; no account, organization, or provider detail is ever exposed.
+
 ## Configuration
 
 | Variable               | Purpose                                                                                           |

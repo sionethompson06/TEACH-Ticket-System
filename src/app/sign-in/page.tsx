@@ -23,9 +23,14 @@ export default async function SignInPage({
 
       <main className="flex flex-1 flex-col gap-6 px-6 py-10 sm:px-10">
         <p className="max-w-md text-base leading-7 text-slate-700 dark:text-slate-300">
-          Access is restricted to verified{" "}
-          <strong>@teachps.org Google Workspace accounts</strong>. Personal
-          Google accounts and other organizations&apos; accounts cannot sign in.
+          This system is for TEACH Public Schools staff. Access is restricted to
+          verified <strong>@teachps.org Google Workspace accounts</strong>.
+          Personal Google accounts and other organizations&apos; accounts cannot
+          sign in.
+        </p>
+        <p className="max-w-md text-base leading-7 text-slate-700 dark:text-slate-300">
+          Once signed in, you can request IT or Facilities help and track your
+          requests.
         </p>
 
         {hasError && (

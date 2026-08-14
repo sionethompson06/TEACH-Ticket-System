@@ -40,6 +40,19 @@ describe("SignInPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("states the system is for TEACH staff and that help is available after signing in", async () => {
+    vi.mocked(isAuthConfigured).mockReturnValue(false);
+
+    await renderSignInPage();
+
+    expect(
+      screen.getByText(/this system is for teach public schools staff/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/request it or facilities help/i),
+    ).toBeInTheDocument();
+  });
+
   it("renders a configuration-pending notice and no sign-in action when unconfigured", async () => {
     vi.mocked(isAuthConfigured).mockReturnValue(false);
 

@@ -125,6 +125,28 @@ See [`docs/DATABASE.md`](DATABASE.md) for the full database foundation (schema, 
 - Take a backup before running migrations against any database containing real data.
 - PGlite (used by `db:verify`) is a fully in-memory, test-only database — it is never the production database choice and never persists anything to disk.
 
+## Release Readiness Commands (Phase 9)
+
+See [`docs/DEPLOYMENT.md`](DEPLOYMENT.md) for the full sequential production setup order these commands are part of.
+
+| Command                   | Purpose                                                                                                                                                                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run readiness:check` | Inspect the running environment configuration and print a `ready`/`not configured`/`invalid` checklist. Never prints a secret value. Deliberately **not** part of `npm run check` — CI runs without production secrets. |
+| `npm run admin:bootstrap` | Guarded first-system-administrator designation. Defaults to a dry run; requires `--apply` with a matching `--confirm-email` to make a real change. Never creates a user or changes an organization.                     |
+
+Neither command is run against a real database as part of this repository's automated work; both are exercised only against fake configuration objects and a synthetic (PGlite) database in the test suite.
+
+## Friendly Failure Handling (Phase 9)
+
+Beyond the accessibility approach above, every unexpected or unavailable-service state shows plain language and a useful next action, using the shared `FriendlyState` component (`src/components/friendly-state.tsx`):
+
+- `src/app/error.tsx` catches any unexpected error from a nested page or layout (including a database-connection failure) with one generic message and a "Try Again"/"Return Home" action — it never renders the underlying error's message or stack.
+- `src/app/global-error.tsx` is the fallback if the root layout itself fails, and renders its own complete `<html>`/`<body>` rather than relying on the layout that just failed.
+- `src/app/not-found.tsx` handles any unmatched URL app-wide; the existing ticket-specific `not-found.tsx` pages under `/requests/[ticketNumber]` and `/support/[ticketNumber]` take precedence within their own segment.
+- The existing `/support` and `/admin` access-denied blocks now reuse the same shared component, rather than near-duplicate inline JSX.
+
+None of this changes what any page is authorized to show — it only changes how a failure or an empty/denied state is presented.
+
 ## Production Build and Local Start
 
 ```bash
@@ -143,7 +165,7 @@ npm run start
 
 ## What This Repository Does Not Yet Include
 
-The application remains intentionally minimal beyond sign-in, the Phase 4 access-control foundation, the Phase 5 ticket data model, the Phase 6 requester experience, the Phase 7 support workspace, and the Phase 8 minimal administration page. It contains no dashboards, charts, saved views, bulk actions, SLA/business-calendar calculation, internal/private notes, attachments, category/location/department administration, custom fields or workflow configuration, email/chat/Slack/SMS notifications, webhooks, background jobs, department-manager role, or confidential-access grant. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), a minimal Requester/Department-Agent/System-Administrator model exists (Phase 4), a core ticket data model with a server-only ticket service exists (Phase 5, see [`docs/DATABASE.md`](DATABASE.md)), a requester can sign in, request help, see My Requests, and send a message on their own ticket (Phase 6), a department agent or system administrator can see their department's queue, open a ticket, reply, assign it, and change its status and priority (Phase 7), and a system administrator can activate/deactivate staff and manage IT/Facilities agent and administrator access at `/admin` (Phase 8) — but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work, and no real user, department membership, administrator, ticket, or comment has been created, seeded, or added. Later items are addressed in later, separately approved phases.
+The application remains intentionally minimal beyond sign-in, the Phase 4 access-control foundation, the Phase 5 ticket data model, the Phase 6 requester experience, the Phase 7 support workspace, and the Phase 8 minimal administration page. It contains no dashboards, charts, saved views, bulk actions, SLA/business-calendar calculation, internal/private notes, attachments, category/location/department administration, custom fields or workflow configuration, email/chat/Slack/SMS notifications, webhooks, background jobs, department-manager role, or confidential-access grant. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), a minimal Requester/Department-Agent/System-Administrator model exists (Phase 4), a core ticket data model with a server-only ticket service exists (Phase 5, see [`docs/DATABASE.md`](DATABASE.md)), a requester can sign in, request help, see My Requests, and send a message on their own ticket (Phase 6), a department agent or system administrator can see their department's queue, open a ticket, reply, assign it, and change its status and priority (Phase 7), a system administrator can activate/deactivate staff and manage IT/Facilities agent and administrator access at `/admin` (Phase 8), and the application now has friendly failure/empty/access-denied states, a safe environment-readiness command, and a guarded first-administrator bootstrap command (Phase 9, see [`docs/DEPLOYMENT.md`](DEPLOYMENT.md)) — but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work, and no real user, department membership, administrator, ticket, or comment has been created, seeded, or added. Later items are addressed in later, separately approved phases.
 
 ## Continuous Integration
 
