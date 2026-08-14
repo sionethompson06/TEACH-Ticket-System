@@ -173,6 +173,46 @@ describe("authorize", () => {
     expect(authorize(systemAdministrator(), action)).toBe(true);
   });
 
+  it("allows an IT agent to manage an IT ticket's status, priority, and assignment", () => {
+    const action: AuthorizationAction = {
+      kind: "manage_ticket",
+      resource: itTicket({ requesterId: OTHER_REQUESTER_ID }),
+    };
+    expect(authorize(itAgent(), action)).toBe(true);
+  });
+
+  it("denies a requester management of their own ticket", () => {
+    const action: AuthorizationAction = {
+      kind: "manage_ticket",
+      resource: itTicket({ requesterId: REQUESTER_ID }),
+    };
+    expect(authorize(requester(), action)).toBe(false);
+  });
+
+  it("denies a Facilities agent management of an IT ticket", () => {
+    const action: AuthorizationAction = {
+      kind: "manage_ticket",
+      resource: itTicket({ requesterId: OTHER_REQUESTER_ID }),
+    };
+    expect(authorize(facilitiesAgent(), action)).toBe(false);
+  });
+
+  it("allows a system administrator to manage any ticket in their organization", () => {
+    const action: AuthorizationAction = {
+      kind: "manage_ticket",
+      resource: facilitiesTicket({ requesterId: OTHER_REQUESTER_ID }),
+    };
+    expect(authorize(systemAdministrator(), action)).toBe(true);
+  });
+
+  it("denies cross-organization ticket management even for an assigned department agent", () => {
+    const action: AuthorizationAction = {
+      kind: "manage_ticket",
+      resource: itTicket({ organizationId: ORG_B }),
+    };
+    expect(authorize(itAgent(), action)).toBe(false);
+  });
+
   it("denies every action for an anonymous actor", () => {
     const anonymous: ResolvedActor = { status: "anonymous" };
     const action: AuthorizationAction = {

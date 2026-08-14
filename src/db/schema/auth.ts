@@ -49,6 +49,10 @@ export const user = pgTable(
   },
   (table) => [
     uniqueIndex("user_email_unique_idx").on(table.email),
+    // Composite unique target so Phase 5 ticket tables can enforce, at the
+    // database level, that a ticket's requester/assignee belongs to the
+    // same organization as the ticket itself.
+    unique("user_id_org_unique").on(table.id, table.organizationId),
     check(
       "user_base_role_requester_check",
       sql`${table.baseRole} = 'requester'`,

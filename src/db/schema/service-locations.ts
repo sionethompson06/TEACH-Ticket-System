@@ -53,6 +53,13 @@ export const serviceLocations = pgTable(
       table.organizationId,
       table.code,
     ),
+    // Composite unique target so Phase 5 ticket tables can enforce, at the
+    // database level, that a ticket's service location belongs to the same
+    // organization as the ticket itself.
+    unique("service_locations_id_org_unique").on(
+      table.id,
+      table.organizationId,
+    ),
     index("service_locations_school_id_idx").on(table.schoolId),
     index("service_locations_location_type_idx").on(table.locationType),
     // A location's school (when present) must belong to the same

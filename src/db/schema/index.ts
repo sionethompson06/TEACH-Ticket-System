@@ -4,3 +4,7 @@ export * from "./service-locations";
 export * from "./auth";
 export * from "./departments";
 export * from "./department-memberships";
+export * from "./ticket-categories";
+export * from "./tickets";
+export * from "./ticket-comments";
+export * from "./ticket-activity";

@@ -1,6 +1,6 @@
 # TEACH Ticket System — Database Foundation
 
-This document covers the Phase 2 database foundation: the PostgreSQL schema, migration workflow, and canonical reference data. Phase 3 added the authentication tables described briefly below (see [`AUTHENTICATION.md`](AUTHENTICATION.md) for the full authentication design), and Phase 4 added a minimal access-control model (departments, department agents, and a single system-administrator flag). No ticket table, category/SLA/queue data, or any authorization concept beyond the Phase 4 MVP exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
+This document covers the Phase 2 database foundation: the PostgreSQL schema, migration workflow, and canonical reference data. Phase 3 added the authentication tables described briefly below (see [`AUTHENTICATION.md`](AUTHENTICATION.md) for the full authentication design); Phase 4 added a minimal access-control model (departments, department agents, and a single system-administrator flag); Phase 5 added the core ticket data model and server-only ticket service. No ticket UI, SLA calculation, department-manager role, or confidential-access grant exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
 
 ## Dialect and Tooling
 
@@ -84,7 +84,55 @@ UUID primary key, `user_id` (FK to `user`, cascades on delete), `department_id` 
 
 ### Authorization Module
 
-`src/authz/policy.ts` is a small, pure, framework-agnostic function (`authorize`) that decides whether a `ResolvedActor` may perform an `AuthorizationAction` — creating a ticket, accessing a ticket resource descriptor, or performing an administrative action. It has no dependency on Better Auth, Next.js, or a database, so it is fully unit-testable with synthetic data. `src/authz/resolve-actor.ts` builds the `ResolvedActor` strictly from a validated session's user id and a fresh database read (current `is_active`/`is_system_administrator` values and current department memberships) — it takes no role or membership parameter of any kind, so there is no channel through which a client-supplied claim could influence the result. Ticket tables and routes that will call this module do not exist yet (Phase 5+).
+`src/authz/policy.ts` is a small, pure, framework-agnostic function (`authorize`) that decides whether a `ResolvedActor` may perform an `AuthorizationAction` — creating a ticket, accessing a ticket resource descriptor, managing a ticket (status/priority/assignment), or performing an administrative action. It has no dependency on Better Auth, Next.js, or a database, so it is fully unit-testable with synthetic data. `src/authz/resolve-actor.ts` builds the `ResolvedActor` strictly from a validated session's user id and a fresh database read (current `is_active`/`is_system_administrator` values and current department memberships) — it takes no role or membership parameter of any kind, so there is no channel through which a client-supplied claim could influence the result.
+
+## Phase 5 Tables — Core Ticket Foundation
+
+Four additional tables and a small server-only ticket service (`src/tickets/`) implement the fewest tables and concepts needed for a basic help-desk ticket, before any user interface exists.
+
+### `ticket_categories`
+
+UUID primary key, `organization_id` (FK, delete-restricted), `department_id` (FK, delete-restricted), `code`, `name`, `is_active`, `display_order`, timestamps.
+
+- `(department_id, code)` is unique — a category code is unique **within a department**, not globally.
+- A composite foreign key ties `(department_id, organization_id)` to `departments(id, organization_id)` — the same organization-scoping pattern already used by `department_memberships`.
+- Seeded with the confirmed IT (7) and Facilities (8) categories from [`PROJECT_FOUNDATION.md`](PROJECT_FOUNDATION.md) Sections 4–5 — categories only, not the representative request types listed alongside them, and not any form-field or SLA configuration (Phase 6+ catalog scope).
+
+### `tickets`
+
+UUID primary key, a database-generated `ticket_number` (`integer GENERATED ALWAYS AS IDENTITY`, unique), `organization_id`, `requester_id`, `department_id`, `service_location_id`, `category_id`, `subject`, `description`, `status`, `priority`, nullable `assigned_agent_id`, and `created_at`/`updated_at`/`resolved_at`/`closed_at` timestamps.
+
+- **Ticket number:** never derived from a record count, timestamp, random value, or client-side logic — a Postgres identity sequence guarantees uniqueness under concurrent inserts. Format one for display with `formatTicketNumber()` from [`src/tickets/ticket-number.ts`](../src/tickets/ticket-number.ts) (e.g. `TKT-000001`).
+- **Status** (`ticket_status` enum): `submitted` (initial), `in_progress`, `waiting_for_requester`, `resolved`, `closed`, `reopened` — a deliberately small subset of the full lifecycle documented in `PROJECT_FOUNDATION.md` Section 6; see that section for exactly which states are deferred and why. `resolved_at`/`closed_at` are set when a ticket enters that status and are never cleared by a later transition (they stand as history, even after a reopen). Allowed transitions are a small, hardcoded, non-configurable rule in [`src/tickets/ticket-status.ts`](../src/tickets/ticket-status.ts) (`canTransitionTicketStatus`): closed is final (no transition out of it at all); resolved may move to reopened or closed; every other status may move freely among the non-closed states or into resolved, but never directly into closed.
+- **Priority** (`ticket_priority` enum): `low`, `normal`, `urgent`, `critical`. Every new ticket defaults to `normal`; no SLA deadline is calculated from it yet (Phase 10).
+- **Content limits:** `subject` and `description` must be non-blank (after trimming) and within a maximum length, enforced by `CHECK` constraints (`tickets_subject_not_blank_check`, `tickets_description_not_blank_check`) — the same limits the service layer validates before ever reaching the database (see [`src/tickets/limits.ts`](../src/tickets/limits.ts), the single source of truth both layers import from).
+- **Organization-scoping composite foreign keys**, extending the same pattern used since Phase 4: `(department_id, organization_id)` → `departments`, `(category_id, department_id)` → `ticket_categories` (this is the database-level enforcement that a ticket's category belongs to its selected department), `(service_location_id, organization_id)` → `service_locations`, `(requester_id, organization_id)` → `user`, and `(assigned_agent_id, organization_id)` → `user` (skipped automatically by Postgres when a ticket is unassigned, since a NULL column in a composite foreign key means the constraint doesn't apply).
+
+### `ticket_comments`
+
+UUID primary key, `ticket_id` (FK, cascades on delete), `organization_id`, `author_id`, `body`, `created_at`.
+
+- Ordinary shared conversation only — visible to the ticket's requester and any authorized department agent/administrator, the same audience as ticket access itself. No internal/private notes, attachments, editing, deletion, reactions, rich text, or email ingestion exist. The service layer exposes no update or delete function at all — comments are append-only by construction, not merely by convention.
+- `body` must be non-blank and within a maximum length, enforced by a `CHECK` constraint mirroring the service layer's validation.
+- A composite foreign key ties `(ticket_id, organization_id)` to `tickets(id, organization_id)`.
+
+### `ticket_activity`
+
+UUID primary key, `ticket_id` (FK, cascades on delete), `organization_id`, `acting_user_id`, `activity_type` (`created` | `status_changed` | `priority_changed` | `assignment_changed`), nullable `previous_value`/`new_value` (short, safe text — a status/priority string or an assignee's user id, never comment text or personal information), `created_at`.
+
+- A single narrow, append-only log — not a generic audit platform. Only the four listed activity types are recorded.
+- Every ticket mutation and its activity record are written inside the same database transaction, so a failed mutation can never leave an orphaned activity row.
+- A composite foreign key ties `(ticket_id, organization_id)` to `tickets(id, organization_id)`.
+
+### Ticket Service
+
+`src/tickets/ticket-service.ts` exposes exactly seven functions: `createTicket`, `getTicket`, `listTicketsForActor`, `addTicketComment`, `updateTicketStatus`, `updateTicketPriority`, `assignTicket`. Every function takes an already-resolved `ResolvedActor` (never a raw request body) and enforces the Phase 4/5 authorization model before touching the database:
+
+- The requester on a new ticket is always the actor themselves — `createTicket`'s input type has no field for a caller to name a different requester or organization.
+- `getTicket` and `addTicketComment` require the `access_ticket` action (the requester's own ticket, or a department agent/administrator for the ticket's department). `getTicket` returns `null` uniformly whether the ticket doesn't exist or simply isn't accessible, so a caller can never learn which case occurred.
+- `updateTicketStatus`, `updateTicketPriority`, and `assignTicket` require the stricter `manage_ticket` action — a department agent for the ticket's department, or a system administrator, but **never** the requester, even for their own ticket.
+- `listTicketsForActor` scopes its query in SQL before returning anything (organization + ownership/department-membership conditions in the `WHERE` clause) — it never fetches every ticket and filters in application memory.
+- `assignTicket` additionally verifies the proposed assignee is an active department-membership holder for the ticket's own department; an unrelated requester or a member of a different department is rejected before any write happens.
 
 ## Environment Variables
 
@@ -128,7 +176,7 @@ The seed is idempotent: it inserts any canonical record that's missing and safel
 npm run db:verify
 ```
 
-This runs `src/db/database-foundation.test.ts` against a completely fresh, in-memory PGlite instance: it applies the committed migrations, confirms only the nine approved tables exist (the three Phase 2 reference tables, the four Phase 3 authentication tables, and the two Phase 4 access-control tables), runs the seed, verifies exact record counts and relationships (including that IT and Facilities are the only two departments), reseeds to confirm idempotency, and confirms the database itself rejects duplicate codes, invalid foreign keys, invalid location-type structural combinations, duplicate department memberships, cross-organization memberships, and every authentication invariant described in [`AUTHENTICATION.md`](AUTHENTICATION.md). It also confirms the seed creates no user, department membership, or administrator. No external credentials or real database are involved — this is how a fresh clone proves the schema and seed work correctly, in CI and locally alike.
+This runs `src/db/database-foundation.test.ts` and `src/db/tickets.test.ts` against a completely fresh, in-memory PGlite instance: it applies the committed migrations, confirms only the thirteen approved tables exist (the three Phase 2 reference tables, the four Phase 3 authentication tables, the two Phase 4 access-control tables, and the four Phase 5 ticket tables), runs the seed, verifies exact record counts and relationships (including that IT and Facilities are the only two departments, with exactly their 7 and 8 confirmed categories), reseeds to confirm idempotency, and confirms the database itself rejects duplicate codes, invalid foreign keys, invalid location-type structural combinations, duplicate department memberships, cross-organization memberships, a category/department mismatch, blank ticket/comment content, and every authentication invariant described in [`AUTHENTICATION.md`](AUTHENTICATION.md). It also confirms the seed creates no user, department membership, administrator, ticket, comment, or activity record, and exercises the full `ticket-service.ts` authorization surface (requester/department-agent/administrator access, cross-organization denial, status/priority/assignment rules, activity-history writes, and that a rejected mutation leaves no activity record behind). No external credentials or real database are involved — this is how a fresh clone proves the schema and seed work correctly, in CI and locally alike.
 
 ## Open Item
 
@@ -136,4 +184,4 @@ The **managed production PostgreSQL provider remains an open decision** (see [`D
 
 ## Explicitly Not Included
 
-Beyond the fixed Requester role (Phase 3) and the minimal department/agent/administrator model (Phase 4), the database contains **no department-manager role, no campus/principal grant, no confidential-access grant, no expiring permission grant, and no ticket-related table**. It remains a database schema, reference-data, authentication, and minimal-access-control foundation only.
+Beyond the fixed Requester role (Phase 3), the minimal department/agent/administrator model (Phase 4), and the core ticket foundation (Phase 5), the database contains **no department-manager role, no campus/principal grant, no confidential-access grant, no expiring permission grant, no SLA/business-calendar calculation, and no ticket user interface**. It remains a database schema, reference-data, authentication, access-control, and ticket-foundation only — Phase 6 builds the requester-facing interface on top of it.

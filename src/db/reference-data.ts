@@ -19,6 +19,14 @@ export interface ReferenceDepartment {
   name: string;
 }
 
+export interface ReferenceTicketCategory {
+  id: string;
+  departmentCode: string;
+  code: string;
+  name: string;
+  displayOrder: number;
+}
+
 export interface ReferenceServiceLocation {
   id: string;
   code: string;
@@ -74,6 +82,118 @@ export const REFERENCE_DEPARTMENTS: ReferenceDepartment[] = [
     id: "549f2c7c-0048-4b50-b2c5-fd5ae86ea7f9",
     code: "FACILITIES",
     name: "Facilities",
+  },
+];
+
+// Phase 5 MVP: the confirmed IT and Facilities categories from
+// docs/PROJECT_FOUNDATION.md Sections 4 and 5 — categories only, not the
+// representative request types listed alongside them (that level of detail
+// is Phase 6+ catalog/form scope).
+export const REFERENCE_TICKET_CATEGORIES: ReferenceTicketCategory[] = [
+  {
+    id: "697234b0-d8bd-48f1-8992-da45fa1866ec",
+    departmentCode: "IT",
+    code: "STUDENT_STAFF_DEVICES",
+    name: "Student and Staff Devices",
+    displayOrder: 1,
+  },
+  {
+    id: "89087962-85d9-4d2b-911f-90ec7c9efc5a",
+    departmentCode: "IT",
+    code: "ACCOUNTS_IDENTITY_ACCESS",
+    name: "Accounts, Identity, and Access",
+    displayOrder: 2,
+  },
+  {
+    id: "a117b6ba-c917-4504-b14e-7a72545720cf",
+    departmentCode: "IT",
+    code: "CLASSROOM_TECH_AV",
+    name: "Classroom Technology and Audiovisual Equipment",
+    displayOrder: 3,
+  },
+  {
+    id: "28fc8e3f-57a9-4817-b43c-bf7e18377790",
+    departmentCode: "IT",
+    code: "NETWORK_CONNECTIVITY",
+    name: "Network and Connectivity",
+    displayOrder: 4,
+  },
+  {
+    id: "d0a1df35-dcd7-4aa2-b02c-93b421fe2e8b",
+    departmentCode: "IT",
+    code: "SOFTWARE_APPS_SUBSCRIPTIONS",
+    name: "Software, Applications, and Subscriptions",
+    displayOrder: 5,
+  },
+  {
+    id: "4d0cebea-c3dc-497e-9859-928c181a0753",
+    departmentCode: "IT",
+    code: "PRINTERS_PERIPHERALS",
+    name: "Printers and Peripherals",
+    displayOrder: 6,
+  },
+  {
+    id: "cc2ec891-17e6-49e5-9080-25201722f1a4",
+    departmentCode: "IT",
+    code: "IT_ONBOARDING_MOVES_EVENTS",
+    name: "IT Onboarding, Moves, and Special Events",
+    displayOrder: 7,
+  },
+  {
+    id: "590e7c72-5178-4fec-bd97-926f8efd7c60",
+    departmentCode: "FACILITIES",
+    code: "HVAC_AIR_QUALITY",
+    name: "HVAC and Air Quality",
+    displayOrder: 1,
+  },
+  {
+    id: "9d5ac890-27ad-4010-8e52-67b3b35f31c8",
+    departmentCode: "FACILITIES",
+    code: "ELECTRICAL_LIGHTING",
+    name: "Electrical and Lighting",
+    displayOrder: 2,
+  },
+  {
+    id: "f5b5559f-7579-439d-a712-df3ee368f5bd",
+    departmentCode: "FACILITIES",
+    code: "PLUMBING_WATER",
+    name: "Plumbing and Water",
+    displayOrder: 3,
+  },
+  {
+    id: "4573bb50-c3e9-40de-98f8-5d5a84d75f2c",
+    departmentCode: "FACILITIES",
+    code: "CUSTODIAL_SERVICES",
+    name: "Custodial Services",
+    displayOrder: 4,
+  },
+  {
+    id: "aa62e425-d047-4da4-ad44-a499e2c4dc5b",
+    departmentCode: "FACILITIES",
+    code: "BUILDING_MAINTENANCE",
+    name: "Building Maintenance",
+    displayOrder: 5,
+  },
+  {
+    id: "b054c121-e27f-4aff-a5f0-046601f55d50",
+    departmentCode: "FACILITIES",
+    code: "KEYS_LOCKS_ACCESS_CONTROL",
+    name: "Keys, Locks, and Access Control",
+    displayOrder: 6,
+  },
+  {
+    id: "929ca8e7-75c1-40d7-9aff-4c552f69c079",
+    departmentCode: "FACILITIES",
+    code: "SAFETY_SECURITY_GROUNDS",
+    name: "Safety, Security, and Grounds",
+    displayOrder: 7,
+  },
+  {
+    id: "d44b51ec-2e9b-4d9d-b538-084bd1d2b5e7",
+    departmentCode: "FACILITIES",
+    code: "FURNITURE_MOVES_EVENT_SETUP",
+    name: "Furniture, Moves, and Event Setup",
+    displayOrder: 8,
   },
 ];
 

@@ -34,6 +34,7 @@ export interface TicketResourceDescriptor {
 export type AuthorizationAction =
   | { kind: "create_ticket" }
   | { kind: "access_ticket"; resource: TicketResourceDescriptor }
+  | { kind: "manage_ticket"; resource: TicketResourceDescriptor }
   | { kind: "administer" };
 
 // Fails closed: anything not explicitly allowed below is denied, including
@@ -60,6 +61,21 @@ export function authorize(
         return true;
       }
       if (resource.requesterId === actor.userId) {
+        return true;
+      }
+      return actor.departmentCodes.includes(resource.departmentCode);
+    }
+
+    // Stricter than access_ticket: managing a ticket (status, priority,
+    // assignment) is never granted merely by being the requester who owns
+    // it — only a department agent for its department, or a system
+    // administrator, may change it.
+    case "manage_ticket": {
+      const { resource } = action;
+      if (resource.organizationId !== actor.organizationId) {
+        return false;
+      }
+      if (actor.isSystemAdministrator) {
         return true;
       }
       return actor.departmentCodes.includes(resource.departmentCode);

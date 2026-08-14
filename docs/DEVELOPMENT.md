@@ -1,6 +1,6 @@
 # Local Development — TEACH Ticket System
 
-This document covers local setup and day-to-day development commands, including the Phase 2 database foundation, Phase 3 authentication, and the Phase 4 minimal access-control model (departments, department agents, and a single system-administrator flag). It does not cover ticket functionality, department-manager roles, campus/principal grants, or confidential-access grants — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
+This document covers local setup and day-to-day development commands, including the Phase 2 database foundation, Phase 3 authentication, the Phase 4 minimal access-control model, and the Phase 5 core ticket foundation (categories, tickets, comments, activity, and the server-only ticket service). It does not cover any ticket user interface, department-manager roles, campus/principal grants, or confidential-access grants — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
 
 ## Prerequisites
 
@@ -21,7 +21,7 @@ npm ci
 npm run dev
 ```
 
-The app starts at **http://localhost:3000**. The root route (`/`) renders a static application-status page linking to `/sign-in` when Google Workspace authentication is configured (see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)) — there is no ticket submission or other functional workflow yet.
+The app starts at **http://localhost:3000**. The root route (`/`) renders a static application-status page linking to `/sign-in` when Google Workspace authentication is configured (see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)) — there is no ticket submission page or other ticket user interface yet. The Phase 5 ticket data model and service layer (`src/tickets/`) exist and are exercised only by the automated test suite; no route calls them yet.
 
 ## Quality Commands
 
@@ -73,7 +73,7 @@ npm run start
 
 ## What This Repository Does Not Yet Include
 
-The application remains intentionally minimal beyond sign-in and the Phase 4 access-control foundation. It contains no ticket-system functionality (submission, routing, queues, assignment, SLAs, email, attachments, etc.), no department-manager role, no campus/principal grant, and no confidential-access grant. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), and a minimal Requester/Department-Agent/System-Administrator model exists (Phase 4, see [`docs/DATABASE.md`](DATABASE.md)) — but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work, and no real user, department membership, or administrator has been created. Later items are addressed in later, separately approved phases.
+The application remains intentionally minimal beyond sign-in, the Phase 4 access-control foundation, and the Phase 5 ticket data model. It contains no ticket user interface (intake form, My Requests page, ticket detail page, department queue, dashboards, admin pages), no SLA/business-calendar calculation, no email notifications, no attachments, no department-manager role, and no confidential-access grant. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), a minimal Requester/Department-Agent/System-Administrator model exists (Phase 4), and a core ticket data model with a server-only ticket service exists (Phase 5, see [`docs/DATABASE.md`](DATABASE.md)) — but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work, and no real user, department membership, administrator, ticket, or comment has been created. Later items are addressed in later, separately approved phases.
 
 ## Continuous Integration
 

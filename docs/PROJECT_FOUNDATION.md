@@ -130,6 +130,8 @@ The IT and Facilities departments share one ticket lifecycle model:
 
 **Resolved vs. Closed:** _Resolved_ means the department has finished its work and recorded a resolution summary, but the requester has not yet confirmed it — the ticket is still awaiting requester acknowledgment (or reopen) during a configured confirmation window. _Closed_ means that confirmation step is complete: either the requester actively confirmed the resolution, or the confirmation window elapsed without a reopen. Only a Closed ticket is fully finished; a Resolved ticket can still become Reopened.
 
+**Phase 5 MVP status subset:** The Phase 5 ticket foundation implements a small subset of this table — `submitted`, `in_progress` (folding together Triaged/Assigned/In Progress; the separate `assigned_agent` field already records ownership), `waiting_for_requester`, `resolved`, `closed`, and `reopened` — preserving the Resolved/Closed distinction exactly as documented above. Canceled, Duplicate, Referred to Another Department, Converted to Project, and Emergency Escalation remain deferred to a later phase. In the Phase 5 MVP, Closed is final (no further transition, including reopening); the full confirmation-window/auto-close behavior described above is also deferred.
+
 ## 7. Priority and Service Targets
 
 ### Support Hours
@@ -156,14 +158,16 @@ The IT and Facilities departments share one ticket lifecycle model:
 - Both the **original** target date/time and any **recalculated** target date/time must be preserved — recalculation (e.g., after a pause) must never silently overwrite the original.
 - Service targets measure **response and operational handling**, not an unconditional guarantee of resolution. When parts, vendor scheduling, approvals, or other external dependencies are required, the target reflects diligence and transparency, not a promise that is outside TEACH's control.
 
+**Phase 5 MVP status:** The four priority values (Critical, Urgent, Normal, Low) exist on every ticket today. Every new ticket starts at **Normal**; the requester never sets or overrides priority — only an authorized department agent or system administrator may change it, and it is not yet recommended from impact/urgency questions. No SLA target, business-hours calendar, or deadline calculation exists yet (deferred to Phase 10). The system-wide warning in Section 5 that a ticket is never a substitute for emergency procedures applies without exception in this MVP as well.
+
 ## 8. Initial Roles
 
 ### MVP Access Levels (Phase 4)
 
 The basic help-desk MVP implements exactly three access levels — deliberately simple, so the core ticket workflow can be built and validated before any richer authorization model:
 
-- **Requester** — every authenticated staff user. Can (once ticket features exist) create a ticket, view their own tickets, and comment on their own tickets.
-- **Department Agent** — a requester who additionally holds an explicit membership in IT, Facilities, or both. Can (once ticket features exist) view, reply to, assign, and update tickets routed to an assigned department, and change ticket status/priority.
+- **Requester** — every authenticated staff user. Can create a ticket, view their own tickets, and comment on their own tickets (server-side foundation implemented in Phase 5; no user interface exists until Phase 6).
+- **Department Agent** — a requester who additionally holds an explicit membership in IT, Facilities, or both. Can view, comment on, assign, and update tickets routed to an assigned department, and change ticket status/priority (server-side foundation implemented in Phase 5; no user interface exists until Phase 6).
 - **System Administrator** — a single, explicit, database-set flag. Manages departments, locations, categories, and agent access; can view ordinary system activity; corrects configuration problems. No user is seeded as an administrator — the first real administrator is configured later through a separately approved operational step, never by a bootstrap account, email allowlist, or development bypass.
 
 Locations remain important ticket information for **routing and filtering** during the MVP (e.g., which campus a request affects) — they are not yet a separate permission-scoping system.

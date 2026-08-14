@@ -6,12 +6,14 @@ import {
   organizations,
   schools,
   serviceLocations,
+  ticketCategories,
 } from "./schema";
 import {
   REFERENCE_DEPARTMENTS,
   REFERENCE_ORGANIZATION,
   REFERENCE_SCHOOLS,
   REFERENCE_SERVICE_LOCATIONS,
+  REFERENCE_TICKET_CATEGORIES,
 } from "./reference-data";
 
 type Database = NodePgDatabase<typeof schema> | PgliteDatabase<typeof schema>;
@@ -37,8 +39,9 @@ export async function seedReferenceData(db: Database): Promise<void> {
       })
       .returning();
 
+    const departmentIdByCode = new Map<string, string>();
     for (const department of REFERENCE_DEPARTMENTS) {
-      await tx
+      const [row] = await tx
         .insert(departments)
         .values({
           id: department.id,
@@ -50,6 +53,36 @@ export async function seedReferenceData(db: Database): Promise<void> {
           target: [departments.organizationId, departments.code],
           set: {
             name: department.name,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+      departmentIdByCode.set(department.code, row.id);
+    }
+
+    for (const category of REFERENCE_TICKET_CATEGORIES) {
+      const departmentId = departmentIdByCode.get(category.departmentCode);
+      if (!departmentId) {
+        throw new Error(
+          `Reference data error: unknown department code "${category.departmentCode}" for category "${category.code}".`,
+        );
+      }
+
+      await tx
+        .insert(ticketCategories)
+        .values({
+          id: category.id,
+          organizationId: organization.id,
+          departmentId,
+          code: category.code,
+          name: category.name,
+          displayOrder: category.displayOrder,
+        })
+        .onConflictDoUpdate({
+          target: [ticketCategories.departmentId, ticketCategories.code],
+          set: {
+            name: category.name,
+            displayOrder: category.displayOrder,
             updatedAt: new Date(),
           },
         });

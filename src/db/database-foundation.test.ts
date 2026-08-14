@@ -13,11 +13,13 @@ import {
   schools,
   serviceLocations,
   session,
+  ticketCategories,
   user,
 } from "./schema";
 import {
   REFERENCE_DEPARTMENTS,
   REFERENCE_ORGANIZATION,
+  REFERENCE_TICKET_CATEGORIES,
 } from "./reference-data";
 import { seedReferenceData } from "./seed-reference-data";
 
@@ -80,10 +82,10 @@ describe("database foundation", () => {
       order by table_name
     `);
     const tableNames = result.rows.map((row) => row.table_name);
-    // Exact list — this is also how we prove no category, SLA, queue,
-    // catalog, ticket, permission-grant, or other Phase 5+ table exists,
-    // and that the Phase 4 access-control model is limited to exactly
-    // these two new tables (departments, department_memberships).
+    // Exact list — this is also how we prove no SLA, queue, form-field, or
+    // other Phase 6+ table exists, and that Phase 5 is limited to exactly
+    // these four new tables (ticket_categories, tickets, ticket_comments,
+    // ticket_activity).
     expect(tableNames).toEqual([
       "account",
       "department_memberships",
@@ -92,16 +94,20 @@ describe("database foundation", () => {
       "schools",
       "service_locations",
       "session",
+      "ticket_activity",
+      "ticket_categories",
+      "ticket_comments",
+      "tickets",
       "user",
       "verification",
     ]);
   });
 
-  it("applies the 0000, 0001, 0002, and 0003 migrations, in order", async () => {
+  it("applies the 0000, 0001, 0002, 0003, and 0004 migrations, in order", async () => {
     const result = await db.execute<{ count: number }>(sql`
       select count(*)::int as count from drizzle.__drizzle_migrations
     `);
-    expect(result.rows[0]?.count).toBe(4);
+    expect(result.rows[0]?.count).toBe(5);
   });
 
   it("seeds exactly the canonical reference data with correct relationships and addresses", async () => {
@@ -129,6 +135,31 @@ describe("database foundation", () => {
       expect(row!.name).toBe(expected.name);
       expect(row!.organizationId).toBe(orgRows[0].id);
       expect(row!.isActive).toBe(true);
+    }
+
+    const categoryRows = await db.select().from(ticketCategories);
+    expect(categoryRows).toHaveLength(REFERENCE_TICKET_CATEGORIES.length);
+    const categoryByCode = new Map(categoryRows.map((row) => [row.code, row]));
+    const itDepartmentId = departmentByCode.get("IT")!.id;
+    const facilitiesDepartmentId = departmentByCode.get("FACILITIES")!.id;
+    expect(
+      categoryRows.filter((row) => row.departmentId === itDepartmentId),
+    ).toHaveLength(7);
+    expect(
+      categoryRows.filter((row) => row.departmentId === facilitiesDepartmentId),
+    ).toHaveLength(8);
+    for (const expected of REFERENCE_TICKET_CATEGORIES) {
+      const row = categoryByCode.get(expected.code);
+      expect(row).toBeDefined();
+      expect(row!.name).toBe(expected.name);
+      expect(row!.organizationId).toBe(orgRows[0].id);
+      expect(row!.isActive).toBe(true);
+      expect(row!.displayOrder).toBe(expected.displayOrder);
+      const expectedDepartmentId =
+        expected.departmentCode === "IT"
+          ? itDepartmentId
+          : facilitiesDepartmentId;
+      expect(row!.departmentId).toBe(expectedDepartmentId);
     }
 
     const [tpeSchool] = await db
@@ -188,11 +219,13 @@ describe("database foundation", () => {
     const schoolRows = await db.select().from(schools);
     const locationRows = await db.select().from(serviceLocations);
     const departmentRows = await db.select().from(departments);
+    const categoryRows = await db.select().from(ticketCategories);
 
     expect(orgRows).toHaveLength(1);
     expect(schoolRows).toHaveLength(3);
     expect(locationRows).toHaveLength(6);
     expect(departmentRows).toHaveLength(2);
+    expect(categoryRows).toHaveLength(REFERENCE_TICKET_CATEGORIES.length);
 
     const [tatSchool] = await db
       .select()
@@ -518,6 +551,25 @@ describe("database foundation", () => {
     // in-memory database, never the seed — asserted precisely by the
     // membership/admin checks above, which the seed never touches either way.
     expect(userCountResult.rows[0]?.count).toBeGreaterThanOrEqual(0);
+  });
+
+  it("seeds no ticket, comment, or activity data — only the category catalog", async () => {
+    // This file never exercises the ticket service, so these tables can
+    // only be non-empty if seedReferenceData itself wrote to them, which
+    // it never should.
+    const ticketCountResult = await db.execute<{ count: number }>(sql`
+      select count(*)::int as count from tickets
+    `);
+    const commentCountResult = await db.execute<{ count: number }>(sql`
+      select count(*)::int as count from ticket_comments
+    `);
+    const activityCountResult = await db.execute<{ count: number }>(sql`
+      select count(*)::int as count from ticket_activity
+    `);
+
+    expect(ticketCountResult.rows[0]?.count).toBe(0);
+    expect(commentCountResult.rows[0]?.count).toBe(0);
+    expect(activityCountResult.rows[0]?.count).toBe(0);
   });
 
   it("rejects a duplicate department membership for the same user and department", async () => {
