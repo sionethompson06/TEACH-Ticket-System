@@ -158,14 +158,26 @@ The IT and Facilities departments share one ticket lifecycle model:
 
 ## 8. Initial Roles
 
-### Conceptual Roles
+### MVP Access Levels (Phase 4)
 
-- **Requester** — submits and follows requests for themselves or an authorized other employee.
-- **Department Member** — works tickets routed to their department's queue(s).
-- **Department Manager** — triages, assigns, reassigns, and may override priority within their department.
-- **Campus Principal or Administrator** — views nonconfidential tickets for their assigned campus(es).
-- **System Administrator** — manages users, roles, organizational structure, and platform configuration.
-- **Authorized Confidential-Queue Member** — holds an additive, explicit grant to view specific confidential tickets or queues.
+The basic help-desk MVP implements exactly three access levels — deliberately simple, so the core ticket workflow can be built and validated before any richer authorization model:
+
+- **Requester** — every authenticated staff user. Can (once ticket features exist) create a ticket, view their own tickets, and comment on their own tickets.
+- **Department Agent** — a requester who additionally holds an explicit membership in IT, Facilities, or both. Can (once ticket features exist) view, reply to, assign, and update tickets routed to an assigned department, and change ticket status/priority.
+- **System Administrator** — a single, explicit, database-set flag. Manages departments, locations, categories, and agent access; can view ordinary system activity; corrects configuration problems. No user is seeded as an administrator — the first real administrator is configured later through a separately approved operational step, never by a bootstrap account, email allowlist, or development bypass.
+
+Locations remain important ticket information for **routing and filtering** during the MVP (e.g., which campus a request affects) — they are not yet a separate permission-scoping system.
+
+### Conceptual Roles (Longer-Term Vision — Deferred Beyond the MVP)
+
+The following roles remain the confirmed long-term direction but are **explicitly deferred** until the basic help-desk system (departments, agents, tickets, and the simple administrator flag above) is working:
+
+- **Department Member** — superseded in the MVP by the simpler Department Agent membership above; a richer distinction may return later if needed.
+- **Department Manager** — triages, assigns, reassigns, and may override priority within their department, with authority beyond an ordinary agent.
+- **Campus Principal or Administrator** — views nonconfidential tickets for their assigned campus(es) (planned for Phase 9 — Principal Campus Visibility).
+- **Authorized Confidential-Queue Member** — holds an additive, explicit grant to view specific confidential tickets or queues, separate from ordinary department membership.
+
+Expiring permission grants, campus-specific permission grants, complex capability matrices, advanced authorization audit workflows, and multiple administrator levels are also deferred — see `docs/PHASE_PLAN.md`'s Phase 4 "Deferred Beyond the MVP" list.
 
 ### Visibility Rules
 

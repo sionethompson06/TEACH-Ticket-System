@@ -23,20 +23,38 @@ This document lays out the planned implementation phases for the TEACH Ticket Sy
 - **Explicit exclusions:** User accounts, authentication, ticket tables, department workflow tables.
 - **Completion gate:** Migrations run cleanly against a fresh database; seeded reference data matches `PROJECT_FOUNDATION.md`.
 
-## Phase 3 — Google Workspace Authentication and User Provisioning — Implementation complete — live OAuth acceptance pending
+## Phase 3 — Google Workspace Authentication and User Provisioning — Implementation complete — external configuration and live OAuth acceptance deferred
 
 - **Objective:** Allow verified `@teachps.org` accounts to sign in, and provision a Requester-role profile on first sign-in.
 - **Included scope:** Google Workspace OAuth/OIDC sign-in, domain/verification checks, session handling, first-login user provisioning.
 - **Explicit exclusions:** Role/permission enforcement beyond default Requester, department or admin role assignment, ticket features.
 - **Completion gate:** Only verified `@teachps.org` accounts can sign in; personal/unverified accounts are denied; negative tests pass.
-- **Status:** The code foundation (schema, migration, identity-policy module, Better Auth configuration, routes/pages, and automated tests — see [`AUTHENTICATION.md`](AUTHENTICATION.md)) is complete and tested against a fresh in-memory database with no real credentials. The completion gate's live element — an actual Google Cloud OAuth client accepting a real `@teachps.org` sign-in against a deployed instance — has not been exercised in this session, because that requires a Google Cloud project and a live production database that were not authorized to be provisioned here. Live OAuth acceptance remains pending until a Google Cloud OAuth client and a deployed database are configured and a real sign-in is verified end-to-end.
+- **Status:** The code foundation (schema, migration, identity-policy module, Better Auth configuration, routes/pages, and automated tests — see [`AUTHENTICATION.md`](AUTHENTICATION.md)) is complete and tested against a fresh in-memory database with no real credentials. The completion gate's live element — a Google Cloud OAuth client accepting a real `@teachps.org` sign-in against a deployed instance, with a production database configured — has not been exercised. No Google credentials are requested or connected as part of Phase 4; live OAuth acceptance remains a deferred, separately approved operational step. Synthetic identities are used only in automated tests.
 
-## Phase 4 — Server-Enforced Roles and Permissions
+## Phase 4 — Minimal Access Control (MVP) ✅ Completed
 
-- **Objective:** Build the central authorization layer: roles, permissions, department membership, campus grants, and confidential-access grants.
-- **Included scope:** Role/permission data model, server-side authorization checks, admin-assignable role grants, audit events for permission changes.
-- **Explicit exclusions:** Ticket data model, UI for ticket workflows.
-- **Completion gate:** Table-driven authorization tests pass for every role/capability combination, including denial cases.
+- **Objective:** Build the smallest access-control foundation an actual help-desk ticket system needs — nothing more — so that the real ticket data model and workflow (Phase 5 onward) can be built against it next.
+- **Included scope:**
+  - A minimal `departments` table, seeded with exactly **IT** and **Facilities**.
+  - A minimal `department_memberships` table: a row means "this user is an agent for this department." A user may hold memberships in IT, Facilities, or both; duplicates are rejected; memberships are organization-scoped at the database level.
+  - A single explicit `is_system_administrator` boolean column on `user` (default `false`), settable only by a direct, separately approved database operation — never by seed, client input, or a bootstrap/dev account.
+  - A small, centralized, server-only authorization module (`src/authz/`) answering: can this user create a ticket, access a ticket they requested, access a ticket for one of their assigned departments, or perform administrative actions? It is independent of Better Auth's initialization (testable without Google credentials) and never trusts a client-supplied role or membership claim — every decision is made from a `ResolvedActor` built fresh from the validated server session and current database state.
+- **Explicit exclusions:** Ticket tables and ticket routes (Phase 5+), department-manager roles, principal/campus-administrator access, campus-specific permission grants, confidential ticket queues and confidential-access grants, expiring permission grants, complex capability matrices, advanced authorization audit workflows, and multiple administrator levels — see "Deferred Beyond the MVP" below. Locations remain routing/filtering information for tickets, not a permission scope, in this MVP.
+- **Completion gate:** Table-driven authorization tests pass for every access rule and denial case (anonymous, missing database user, inactive user, cross-department, cross-organization, unknown action, forged client claims) — see [`DATABASE.md`](DATABASE.md) and the test files under `src/authz/` and `src/db/`.
+- **Status:** No real users, department memberships, or administrators exist. The first real system administrator will be configured later through a separately approved operational step, not by this phase.
+
+### Deferred Beyond the MVP (Post-MVP Access-Control Backlog)
+
+The longer-term authorization vision from `docs/PROJECT_FOUNDATION.md` is preserved, but explicitly deferred until the basic help-desk workflow is working end-to-end:
+
+- Department-manager roles (triage/reassignment/priority-override authority within a department).
+- Principal or campus-administrator access (planned for Phase 9 — Principal Campus Visibility).
+- Campus-specific permission grants.
+- Confidential ticket queues and confidential-access grants (a separate, explicit grant beyond ordinary department membership).
+- Expiring permission grants.
+- Complex capability matrices.
+- Advanced authorization audit workflows.
+- Multiple administrator levels (configuration authority vs. confidential-content access remain conceptually separate per `PROJECT_FOUNDATION.md`, but only one simple administrator flag exists so far).
 
 ## Phase 5 — IT and Facilities Request Catalog
 

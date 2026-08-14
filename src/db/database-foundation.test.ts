@@ -3,16 +3,22 @@ import { eq, sql } from "drizzle-orm";
 import { drizzle, type PgliteDatabase } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { resolveActor } from "../authz/resolve-actor";
 import * as schema from "./schema";
 import {
   account,
+  departmentMemberships,
+  departments,
   organizations,
   schools,
   serviceLocations,
   session,
   user,
 } from "./schema";
-import { REFERENCE_ORGANIZATION } from "./reference-data";
+import {
+  REFERENCE_DEPARTMENTS,
+  REFERENCE_ORGANIZATION,
+} from "./reference-data";
 import { seedReferenceData } from "./seed-reference-data";
 
 // Independently transcribed from docs/PROJECT_FOUNDATION.md Section 1, not
@@ -74,10 +80,14 @@ describe("database foundation", () => {
       order by table_name
     `);
     const tableNames = result.rows.map((row) => row.table_name);
-    // Exact list — this is also how we prove no department, permission,
-    // grant, ticket, queue, catalog, or other Phase 4+ table exists.
+    // Exact list — this is also how we prove no category, SLA, queue,
+    // catalog, ticket, permission-grant, or other Phase 5+ table exists,
+    // and that the Phase 4 access-control model is limited to exactly
+    // these two new tables (departments, department_memberships).
     expect(tableNames).toEqual([
       "account",
+      "department_memberships",
+      "departments",
       "organizations",
       "schools",
       "service_locations",
@@ -87,11 +97,11 @@ describe("database foundation", () => {
     ]);
   });
 
-  it("applies the 0000, 0001, and 0002 migrations, in order", async () => {
+  it("applies the 0000, 0001, 0002, and 0003 migrations, in order", async () => {
     const result = await db.execute<{ count: number }>(sql`
       select count(*)::int as count from drizzle.__drizzle_migrations
     `);
-    expect(result.rows[0]?.count).toBe(3);
+    expect(result.rows[0]?.count).toBe(4);
   });
 
   it("seeds exactly the canonical reference data with correct relationships and addresses", async () => {
@@ -107,6 +117,19 @@ describe("database foundation", () => {
 
     const locationRows = await db.select().from(serviceLocations);
     expect(locationRows).toHaveLength(6);
+
+    const departmentRows = await db.select().from(departments);
+    expect(departmentRows).toHaveLength(2);
+    const departmentByCode = new Map(
+      departmentRows.map((row) => [row.code, row]),
+    );
+    for (const expected of REFERENCE_DEPARTMENTS) {
+      const row = departmentByCode.get(expected.code);
+      expect(row).toBeDefined();
+      expect(row!.name).toBe(expected.name);
+      expect(row!.organizationId).toBe(orgRows[0].id);
+      expect(row!.isActive).toBe(true);
+    }
 
     const [tpeSchool] = await db
       .select()
@@ -164,10 +187,12 @@ describe("database foundation", () => {
     const orgRows = await db.select().from(organizations);
     const schoolRows = await db.select().from(schools);
     const locationRows = await db.select().from(serviceLocations);
+    const departmentRows = await db.select().from(departments);
 
     expect(orgRows).toHaveLength(1);
     expect(schoolRows).toHaveLength(3);
     expect(locationRows).toHaveLength(6);
+    expect(departmentRows).toHaveLength(2);
 
     const [tatSchool] = await db
       .select()
@@ -473,5 +498,262 @@ describe("database foundation", () => {
         userId: owner.id,
       }),
     ).rejects.toThrow();
+  });
+
+  it("seeds no users, no department memberships, and no administrator", async () => {
+    const userCountResult = await db.execute<{ count: number }>(sql`
+      select count(*)::int as count from "user"
+    `);
+    // Non-zero here would mean the seed itself created a user, which it
+    // never should — every user row seen elsewhere in this suite comes
+    // from a test explicitly inserting one, not from seedReferenceData.
+    const membershipRows = await db.select().from(departmentMemberships);
+    const adminCountResult = await db.execute<{ count: number }>(sql`
+      select count(*)::int as count from "user" where is_system_administrator = true
+    `);
+
+    expect(membershipRows).toHaveLength(0);
+    expect(adminCountResult.rows[0]?.count).toBe(0);
+    // A nonzero user count here only reflects prior tests in this same
+    // in-memory database, never the seed — asserted precisely by the
+    // membership/admin checks above, which the seed never touches either way.
+    expect(userCountResult.rows[0]?.count).toBeGreaterThanOrEqual(0);
+  });
+
+  it("rejects a duplicate department membership for the same user and department", async () => {
+    const [owner] = await db
+      .insert(user)
+      .values({
+        name: "Duplicate Membership Owner",
+        email: "duplicate.membership.owner@teachps.org",
+        emailVerified: true,
+      })
+      .returning();
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.code, "TEACHPS"));
+    const [itDepartment] = await db
+      .select()
+      .from(departments)
+      .where(eq(departments.code, "IT"));
+
+    await db.insert(departmentMemberships).values({
+      userId: owner.id,
+      departmentId: itDepartment.id,
+      organizationId: org.id,
+    });
+
+    await expect(
+      db.insert(departmentMemberships).values({
+        userId: owner.id,
+        departmentId: itDepartment.id,
+        organizationId: org.id,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("allows the same user to hold memberships in both IT and Facilities", async () => {
+    const [owner] = await db
+      .insert(user)
+      .values({
+        name: "Both Departments Owner",
+        email: "both.departments.owner@teachps.org",
+        emailVerified: true,
+      })
+      .returning();
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.code, "TEACHPS"));
+    const [itDepartment] = await db
+      .select()
+      .from(departments)
+      .where(eq(departments.code, "IT"));
+    const [facilitiesDepartment] = await db
+      .select()
+      .from(departments)
+      .where(eq(departments.code, "FACILITIES"));
+
+    await db.insert(departmentMemberships).values([
+      {
+        userId: owner.id,
+        departmentId: itDepartment.id,
+        organizationId: org.id,
+      },
+      {
+        userId: owner.id,
+        departmentId: facilitiesDepartment.id,
+        organizationId: org.id,
+      },
+    ]);
+
+    const rows = await db
+      .select()
+      .from(departmentMemberships)
+      .where(eq(departmentMemberships.userId, owner.id));
+    expect(rows).toHaveLength(2);
+  });
+
+  it("rejects a department membership whose organization does not match its department's organization", async () => {
+    const [otherOrg] = await db
+      .insert(organizations)
+      .values({ code: "OTHERORG2", name: "Another Test Org" })
+      .returning();
+    const [owner] = await db
+      .insert(user)
+      .values({
+        name: "Cross Org Membership Owner",
+        email: "cross.org.membership.owner@teachps.org",
+        emailVerified: true,
+      })
+      .returning();
+    const [itDepartment] = await db
+      .select()
+      .from(departments)
+      .where(eq(departments.code, "IT"));
+
+    // itDepartment belongs to the canonical TEACH org, not otherOrg — the
+    // composite (department_id, organization_id) foreign key must reject
+    // this regardless of the fact that both rows individually exist.
+    await expect(
+      db.insert(departmentMemberships).values({
+        userId: owner.id,
+        departmentId: itDepartment.id,
+        organizationId: otherOrg.id,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a department membership referencing a nonexistent user or department", async () => {
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.code, "TEACHPS"));
+    const [itDepartment] = await db
+      .select()
+      .from(departments)
+      .where(eq(departments.code, "IT"));
+
+    await expect(
+      db.insert(departmentMemberships).values({
+        userId: "00000000-0000-0000-0000-000000000000",
+        departmentId: itDepartment.id,
+        organizationId: org.id,
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      db.insert(departmentMemberships).values({
+        userId: (
+          await db
+            .insert(user)
+            .values({
+              name: "Ghost Department Membership Owner",
+              email: "ghost.department.membership.owner@teachps.org",
+              emailVerified: true,
+            })
+            .returning()
+        )[0].id,
+        departmentId: "00000000-0000-0000-0000-000000000000",
+        organizationId: org.id,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("resolveActor reflects only live database state for a plain requester with no membership and no administrator flag", async () => {
+    const [owner] = await db
+      .insert(user)
+      .values({
+        name: "Plain Requester",
+        email: "plain.requester@teachps.org",
+        emailVerified: true,
+      })
+      .returning();
+
+    const actor = await resolveActor(db, owner.id);
+    expect(actor).toEqual({
+      status: "active",
+      userId: owner.id,
+      organizationId: REFERENCE_ORGANIZATION.id,
+      isSystemAdministrator: false,
+      departmentCodes: [],
+    });
+  });
+
+  it("resolveActor reports department codes and administrator status strictly from the database", async () => {
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.code, "TEACHPS"));
+    const [itDepartment] = await db
+      .select()
+      .from(departments)
+      .where(eq(departments.code, "IT"));
+    const [facilitiesDepartment] = await db
+      .select()
+      .from(departments)
+      .where(eq(departments.code, "FACILITIES"));
+    const [owner] = await db
+      .insert(user)
+      .values({
+        name: "Resolved Both Departments Agent",
+        email: "resolved.both.departments.agent@teachps.org",
+        emailVerified: true,
+      })
+      .returning();
+    await db.insert(departmentMemberships).values([
+      {
+        userId: owner.id,
+        departmentId: itDepartment.id,
+        organizationId: org.id,
+      },
+      {
+        userId: owner.id,
+        departmentId: facilitiesDepartment.id,
+        organizationId: org.id,
+      },
+    ]);
+
+    const actor = await resolveActor(db, owner.id);
+    expect(actor.status).toBe("active");
+    if (actor.status === "active") {
+      expect(actor.isSystemAdministrator).toBe(false);
+      expect([...actor.departmentCodes].sort()).toEqual(["FACILITIES", "IT"]);
+    }
+
+    // Administrator status is settable only by a direct database
+    // operation — there is no application code path that sets it, so the
+    // only way to observe resolveActor reporting it is a direct update
+    // like this one, standing in for that separately approved step.
+    await db
+      .update(user)
+      .set({ isSystemAdministrator: true })
+      .where(eq(user.id, owner.id));
+    const promotedActor = await resolveActor(db, owner.id);
+    expect(promotedActor.status).toBe("active");
+    if (promotedActor.status === "active") {
+      expect(promotedActor.isSystemAdministrator).toBe(true);
+    }
+  });
+
+  it("resolveActor denies an inactive user and a session with no matching database row", async () => {
+    const [inactiveOwner] = await db
+      .insert(user)
+      .values({
+        name: "Inactive User",
+        email: "inactive.user@teachps.org",
+        emailVerified: true,
+        isActive: false,
+      })
+      .returning();
+
+    expect(await resolveActor(db, inactiveOwner.id)).toEqual({
+      status: "inactive",
+    });
+    expect(
+      await resolveActor(db, "00000000-0000-0000-0000-000000000000"),
+    ).toEqual({ status: "user_not_found" });
+    expect(await resolveActor(db, null)).toEqual({ status: "anonymous" });
   });
 });

@@ -1,6 +1,6 @@
 # TEACH Ticket System — Database Foundation
 
-This document covers the Phase 2 database foundation: the PostgreSQL schema, migration workflow, and canonical reference data. Phase 3 added the authentication tables described briefly below; see [`AUTHENTICATION.md`](AUTHENTICATION.md) for the full authentication design. Neither phase includes role/permission enforcement beyond the fixed Requester role, department membership, or ticket functionality — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
+This document covers the Phase 2 database foundation: the PostgreSQL schema, migration workflow, and canonical reference data. Phase 3 added the authentication tables described briefly below (see [`AUTHENTICATION.md`](AUTHENTICATION.md) for the full authentication design), and Phase 4 added a minimal access-control model (departments, department agents, and a single system-administrator flag). No ticket table, category/SLA/queue data, or any authorization concept beyond the Phase 4 MVP exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
 
 ## Dialect and Tooling
 
@@ -56,7 +56,35 @@ Every reference record uses a **stable, hand-assigned UUID** that never changes 
 
 ## Phase 3 Tables
 
-Four additional tables — `user`, `account`, `session`, and `verification` — support Google Workspace authentication and first-login provisioning. They are described fully in [`AUTHENTICATION.md`](AUTHENTICATION.md), including the `CHECK` constraints that fix every user to the canonical organization and the Requester role, forbid persisting any OAuth token or password, and forbid any provider other than `google`. No department, role beyond Requester, permission, or ticket-related table exists.
+Four additional tables — `user`, `account`, `session`, and `verification` — support Google Workspace authentication and first-login provisioning. They are described fully in [`AUTHENTICATION.md`](AUTHENTICATION.md), including the `CHECK` constraints that fix every user to the canonical organization and the Requester role, forbid persisting any OAuth token or password, and forbid any provider other than `google`. Phase 3 also added two plain columns to `user` used only starting in Phase 4: `is_active` (boolean, default `true`) and `is_system_administrator` (boolean, default `false`, described below).
+
+## Phase 4 Tables — Minimal Access Control (MVP)
+
+Two additional tables implement the smallest access-control model needed before real tickets exist. No category, SLA, queue, or ticket-related table exists yet.
+
+### `departments`
+
+UUID primary key, `organization_id` (FK to `organizations`, delete-restricted), `code` (unique per organization), `name`, `is_active`, timestamps. Seeded with exactly two rows — `IT` and `FACILITIES` — no other department exists.
+
+### `department_memberships`
+
+UUID primary key, `user_id` (FK to `user`, cascades on delete), `department_id` (FK to `departments`, delete-restricted), `organization_id` (FK to `organizations`, delete-restricted), `created_at`. A row means "this user is a department agent for this department" — there are no manager levels, expiring grants, or other richer concepts.
+
+- `(user_id, department_id)` is unique — a duplicate membership is rejected.
+- A composite foreign key ties `(department_id, organization_id)` to `departments(id, organization_id)`, so a membership can never claim an organization different from its department's actual organization — the same organization-scoping pattern already used by `service_locations` against `schools`.
+- No department membership is seeded. Assigning a real user as a department agent is a future, separately performed operation once real users exist.
+
+### System Administrator Designation
+
+`user.is_system_administrator` is the entire administrator model for the MVP — one boolean column, defaulting `false`. It is:
+
+- **Never** set by the seed, by any request the client can make, or by a bootstrap/development account.
+- Declared `input: false` wherever it is exposed through Better Auth, so no API request can set it.
+- Settable **only** by a direct, separately approved database operation once a real first administrator needs to be configured.
+
+### Authorization Module
+
+`src/authz/policy.ts` is a small, pure, framework-agnostic function (`authorize`) that decides whether a `ResolvedActor` may perform an `AuthorizationAction` — creating a ticket, accessing a ticket resource descriptor, or performing an administrative action. It has no dependency on Better Auth, Next.js, or a database, so it is fully unit-testable with synthetic data. `src/authz/resolve-actor.ts` builds the `ResolvedActor` strictly from a validated session's user id and a fresh database read (current `is_active`/`is_system_administrator` values and current department memberships) — it takes no role or membership parameter of any kind, so there is no channel through which a client-supplied claim could influence the result. Ticket tables and routes that will call this module do not exist yet (Phase 5+).
 
 ## Environment Variables
 
@@ -100,7 +128,7 @@ The seed is idempotent: it inserts any canonical record that's missing and safel
 npm run db:verify
 ```
 
-This runs `src/db/database-foundation.test.ts` against a completely fresh, in-memory PGlite instance: it applies the committed migrations, confirms only the seven approved tables exist (the three Phase 2 reference tables plus the four Phase 3 authentication tables), runs the seed, verifies exact record counts and relationships, reseeds to confirm idempotency, and confirms the database itself rejects duplicate codes, invalid foreign keys, invalid location-type structural combinations, and every authentication invariant described in [`AUTHENTICATION.md`](AUTHENTICATION.md). No external credentials or real database are involved — this is how a fresh clone proves the schema and seed work correctly, in CI and locally alike.
+This runs `src/db/database-foundation.test.ts` against a completely fresh, in-memory PGlite instance: it applies the committed migrations, confirms only the nine approved tables exist (the three Phase 2 reference tables, the four Phase 3 authentication tables, and the two Phase 4 access-control tables), runs the seed, verifies exact record counts and relationships (including that IT and Facilities are the only two departments), reseeds to confirm idempotency, and confirms the database itself rejects duplicate codes, invalid foreign keys, invalid location-type structural combinations, duplicate department memberships, cross-organization memberships, and every authentication invariant described in [`AUTHENTICATION.md`](AUTHENTICATION.md). It also confirms the seed creates no user, department membership, or administrator. No external credentials or real database are involved — this is how a fresh clone proves the schema and seed work correctly, in CI and locally alike.
 
 ## Open Item
 
@@ -108,4 +136,4 @@ The **managed production PostgreSQL provider remains an open decision** (see [`D
 
 ## Explicitly Not Included
 
-Beyond the fixed Requester role provisioned on first sign-in (Phase 3), the database contains **no department, no elevated role or permission, and no ticket-related table**. It remains a database schema, reference-data, and authentication foundation only.
+Beyond the fixed Requester role (Phase 3) and the minimal department/agent/administrator model (Phase 4), the database contains **no department-manager role, no campus/principal grant, no confidential-access grant, no expiring permission grant, and no ticket-related table**. It remains a database schema, reference-data, authentication, and minimal-access-control foundation only.

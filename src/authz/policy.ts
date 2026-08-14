@@ -1,0 +1,74 @@
+// Server-only, centralized authorization policy. Deliberately independent
+// of Better Auth's initialization (no import of `better-auth` or the auth
+// config here) so it can be unit tested with plain synthetic data and no
+// Google credentials of any kind. This module makes ticket-access
+// decisions in preparation for Phase 5 — it defines no ticket table and
+// no ticket route.
+//
+// Trust boundary: `authorize` never reads a role, membership, or
+// organization value from anywhere except the `ResolvedActor` it is given.
+// The caller is responsible for producing that actor from a validated
+// server session and current database state (see resolve-actor.ts) —
+// never from client-supplied input.
+
+export type ResolvedActor =
+  | { status: "anonymous" }
+  | { status: "user_not_found" }
+  | { status: "inactive" }
+  | {
+      status: "active";
+      userId: string;
+      organizationId: string;
+      isSystemAdministrator: boolean;
+      departmentCodes: readonly string[];
+    };
+
+// A simple typed stand-in for "the ticket being accessed," used by tests
+// and by future Phase 5 code — not a persisted table.
+export interface TicketResourceDescriptor {
+  organizationId: string;
+  requesterId: string;
+  departmentCode: string;
+}
+
+export type AuthorizationAction =
+  | { kind: "create_ticket" }
+  | { kind: "access_ticket"; resource: TicketResourceDescriptor }
+  | { kind: "administer" };
+
+// Fails closed: anything not explicitly allowed below is denied, including
+// an actor that isn't "active" (anonymous, no matching database user, or
+// inactive) and an action kind this function does not recognize.
+export function authorize(
+  actor: ResolvedActor,
+  action: AuthorizationAction,
+): boolean {
+  if (actor.status !== "active") {
+    return false;
+  }
+
+  switch (action.kind) {
+    case "create_ticket":
+      return true;
+
+    case "access_ticket": {
+      const { resource } = action;
+      if (resource.organizationId !== actor.organizationId) {
+        return false;
+      }
+      if (actor.isSystemAdministrator) {
+        return true;
+      }
+      if (resource.requesterId === actor.userId) {
+        return true;
+      }
+      return actor.departmentCodes.includes(resource.departmentCode);
+    }
+
+    case "administer":
+      return actor.isSystemAdministrator;
+
+    default:
+      return false;
+  }
+}

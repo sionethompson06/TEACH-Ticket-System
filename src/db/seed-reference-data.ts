@@ -1,8 +1,14 @@
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "./schema";
-import { organizations, schools, serviceLocations } from "./schema";
 import {
+  departments,
+  organizations,
+  schools,
+  serviceLocations,
+} from "./schema";
+import {
+  REFERENCE_DEPARTMENTS,
   REFERENCE_ORGANIZATION,
   REFERENCE_SCHOOLS,
   REFERENCE_SERVICE_LOCATIONS,
@@ -30,6 +36,24 @@ export async function seedReferenceData(db: Database): Promise<void> {
         },
       })
       .returning();
+
+    for (const department of REFERENCE_DEPARTMENTS) {
+      await tx
+        .insert(departments)
+        .values({
+          id: department.id,
+          organizationId: organization.id,
+          code: department.code,
+          name: department.name,
+        })
+        .onConflictDoUpdate({
+          target: [departments.organizationId, departments.code],
+          set: {
+            name: department.name,
+            updatedAt: new Date(),
+          },
+        });
+    }
 
     const schoolIdByCode = new Map<string, string>();
     for (const school of REFERENCE_SCHOOLS) {

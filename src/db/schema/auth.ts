@@ -31,6 +31,15 @@ export const user = pgTable(
       .default(REFERENCE_ORGANIZATION.id)
       .references(() => organizations.id, { onDelete: "restrict" }),
     baseRole: text("base_role").notNull().default("requester"),
+    isActive: boolean("is_active").notNull().default(true),
+    // Phase 4 MVP: the smallest possible administrator designation — one
+    // boolean, defaulting false, settable only by a direct database
+    // operation (never client input, never a seed, never a bootstrap
+    // account). See docs/AUTHENTICATION.md for how the first real
+    // administrator is configured.
+    isSystemAdministrator: boolean("is_system_administrator")
+      .notNull()
+      .default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

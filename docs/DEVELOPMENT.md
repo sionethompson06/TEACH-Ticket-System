@@ -1,6 +1,6 @@
 # Local Development — TEACH Ticket System
 
-This document covers local setup and day-to-day development commands, including the Phase 2 database foundation and Phase 3 authentication. It does not cover ticket functionality, department membership, or any role/permission beyond the fixed Requester role — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
+This document covers local setup and day-to-day development commands, including the Phase 2 database foundation, Phase 3 authentication, and the Phase 4 minimal access-control model (departments, department agents, and a single system-administrator flag). It does not cover ticket functionality, department-manager roles, campus/principal grants, or confidential-access grants — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
 
 ## Prerequisites
 
@@ -73,7 +73,7 @@ npm run start
 
 ## What This Repository Does Not Yet Include
 
-The application remains intentionally minimal beyond sign-in. It contains no ticket-system functionality (submission, routing, queues, assignment, SLAs, email, attachments, etc.), no department membership, and no role or permission beyond the fixed Requester role every signed-in account receives. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work. Later items are addressed in later, separately approved phases.
+The application remains intentionally minimal beyond sign-in and the Phase 4 access-control foundation. It contains no ticket-system functionality (submission, routing, queues, assignment, SLAs, email, attachments, etc.), no department-manager role, no campus/principal grant, and no confidential-access grant. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), and a minimal Requester/Department-Agent/System-Administrator model exists (Phase 4, see [`docs/DATABASE.md`](DATABASE.md)) — but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work, and no real user, department membership, or administrator has been created. Later items are addressed in later, separately approved phases.
 
 ## Continuous Integration
 

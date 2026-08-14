@@ -13,6 +13,12 @@ export interface ReferenceSchool {
   gradeBand: string;
 }
 
+export interface ReferenceDepartment {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export interface ReferenceServiceLocation {
   id: string;
   code: string;
@@ -53,6 +59,21 @@ export const REFERENCE_SCHOOLS: ReferenceSchool[] = [
     code: "TTHS",
     name: "TEACH Tech Charter High School",
     gradeBand: "9–12",
+  },
+];
+
+// Phase 4 MVP: exactly the two initial departments. No categories, SLAs,
+// queues, or other Phase 5 data.
+export const REFERENCE_DEPARTMENTS: ReferenceDepartment[] = [
+  {
+    id: "3576691a-f9ce-45f0-a714-6027194ab176",
+    code: "IT",
+    name: "Information Technology",
+  },
+  {
+    id: "549f2c7c-0048-4b50-b2c5-fd5ae86ea7f9",
+    code: "FACILITIES",
+    name: "Facilities",
   },
 ];
 
