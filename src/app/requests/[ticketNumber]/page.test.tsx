@@ -150,4 +150,28 @@ describe("TicketDetailPage", () => {
     expect(container.textContent).not.toContain("in_progress");
     expect(container.textContent).not.toContain("urgent");
   });
+
+  it("shows a closed-request message instead of the Send Message form when closed", async () => {
+    requireActiveActor.mockResolvedValue(ACTOR);
+    getTicketDetailByNumber.mockResolvedValue({
+      ...BASE_TICKET,
+      status: "closed",
+    });
+    listTicketComments.mockResolvedValue([]);
+
+    render(
+      await TicketDetailPage({
+        params: Promise.resolve({ ticketNumber: "TKT-000042" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(
+      screen.getAllByText(/this request is closed/i).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: /send message/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/message/i)).not.toBeInTheDocument();
+  });
 });

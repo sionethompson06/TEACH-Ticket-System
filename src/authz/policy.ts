@@ -88,3 +88,18 @@ export function authorize(
       return false;
   }
 }
+
+// Actor-shape check, not a resource decision: true when the actor may
+// access the Phase 7 support workspace at all (some department
+// membership, or system-administrator status) — used to gate /support
+// before any per-ticket access_ticket/manage_ticket decision is made, and
+// to decide whether the shared navigation shows the Support Queue link.
+// An ordinary requester with no department membership is never support
+// staff, even though access_ticket already lets them view their own
+// tickets elsewhere.
+export function isSupportStaff(actor: ResolvedActor): boolean {
+  if (actor.status !== "active") {
+    return false;
+  }
+  return actor.isSystemAdministrator || actor.departmentCodes.length > 0;
+}

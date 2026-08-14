@@ -251,6 +251,26 @@ export interface TicketFormOptions {
   serviceLocations: TicketFormLocationOption[];
 }
 
+// Active service locations for an organization — small, non-sensitive,
+// organization-wide reference data. Shared by the Phase 6 Request Help
+// form and the Phase 7 support-queue location filter, so the query lives
+// in one place rather than being duplicated.
+export async function listActiveServiceLocations(
+  db: Database,
+  organizationId: string,
+): Promise<TicketFormLocationOption[]> {
+  return db
+    .select({ id: serviceLocations.id, name: serviceLocations.name })
+    .from(serviceLocations)
+    .where(
+      and(
+        eq(serviceLocations.organizationId, organizationId),
+        eq(serviceLocations.isActive, true),
+      ),
+    )
+    .orderBy(asc(serviceLocations.name));
+}
+
 // Active reference data for the Request Help form — small, non-sensitive,
 // organization-wide lists (a couple dozen rows at most), loaded once and
 // filtered client-side as the requester picks a department. This is not
@@ -289,16 +309,7 @@ export async function loadTicketFormOptions(
         ),
       )
       .orderBy(asc(ticketCategories.displayOrder)),
-    db
-      .select({ id: serviceLocations.id, name: serviceLocations.name })
-      .from(serviceLocations)
-      .where(
-        and(
-          eq(serviceLocations.organizationId, organizationId),
-          eq(serviceLocations.isActive, true),
-        ),
-      )
-      .orderBy(asc(serviceLocations.name)),
+    listActiveServiceLocations(db, organizationId),
   ]);
 
   return {

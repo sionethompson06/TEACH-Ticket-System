@@ -280,6 +280,7 @@ export async function addTicketComment(
   if (!authorized) {
     throw new TicketAuthorizationError();
   }
+  assertNotClosed(found.ticket);
 
   const [comment] = await db
     .insert(ticketComments)
@@ -307,6 +308,18 @@ async function assertManageAuthority(
   });
   if (!authorized) {
     throw new TicketAuthorizationError();
+  }
+}
+
+// Closed is final in the MVP (see canTransitionTicketStatus): no further
+// comment, assignment, or priority change is permitted once a ticket is
+// closed. Checked here, in the service layer, so the rule holds even if a
+// UI control were ever mistakenly left enabled.
+function assertNotClosed(ticket: Ticket): void {
+  if (ticket.status === "closed") {
+    throw new TicketValidationError(
+      "This request is closed and can no longer be updated.",
+    );
   }
 }
 
@@ -378,6 +391,7 @@ export async function updateTicketPriority(
     throw new TicketAuthorizationError();
   }
   await assertManageAuthority(actor, found);
+  assertNotClosed(found.ticket);
 
   const currentPriority = found.ticket.priority;
   return db.transaction(async (tx) => {
@@ -416,6 +430,7 @@ export async function assignTicket(
     throw new TicketAuthorizationError();
   }
   await assertManageAuthority(actor, found);
+  assertNotClosed(found.ticket);
 
   const previousAssigneeId = found.ticket.assignedAgentId;
 

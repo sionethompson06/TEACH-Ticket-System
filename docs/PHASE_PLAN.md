@@ -82,12 +82,20 @@ The longer-term authorization vision from `docs/PROJECT_FOUNDATION.md` is preser
 - **Completion gate:** A signed-in requester can submit a request, see it appear on My Requests with a friendly status, open it, and exchange a message with the support team; an unauthenticated visitor is redirected to sign in; a ticket the requester does not own is never distinguishable from a nonexistent one.
 - **Status:** No department-agent interface exists yet (Phase 7). Google Workspace live OAuth acceptance remains deferred exactly as stated in Phase 3 — this phase requested no credentials and added no bypass.
 
-## Phase 7 — Department Queues, Assignment, Status History, and Resolution
+## Phase 7 — IT and Facilities Support Workspace ✅ Completed
 
-- **Objective:** Build the department-facing workflow: triage, assignment/reassignment, status transitions, and resolution.
-- **Included scope:** Queue views, assignment/reassignment, the full ticket-lifecycle status model, resolution requirements (summary, resolver, timestamp), concurrency protection.
-- **Explicit exclusions:** Requester-visible communication features (Phase 8), campus/leadership views (Phase 9).
-- **Completion gate:** A ticket can move end-to-end through the lifecycle in the app with correct history and concurrency protection.
+- **Objective:** Build one straightforward workspace where an authorized IT or Facilities agent (or a system administrator) can see their department's tickets, open one, read and reply to the conversation, assign it, and change its status and priority — nothing more.
+- **Included scope:**
+  - Two new routes, both requiring an active user with at least one department membership or system-administrator status (an ordinary requester gets a safe access-denied result and never sees the Support Queue link): `/support` (the queue) and `/support/[ticketNumber]` (the workspace), addressed by the same human-friendly ticket number the requester experience uses.
+  - A shared authenticated navigation component (`src/app/app-nav.tsx`) used by both the requester and support layouts, showing **Support Queue** only to a department agent or system administrator.
+  - A support queue showing active tickets (Received, Reopened, In progress, Waiting for you) by default — resolved and closed tickets are hidden unless explicitly filtered in — ordered by priority then age, with server-validated Department/Location/Status/Assignment (All/Mine/Unassigned) filters, a Clear filters action, a bounded result limit, and helpful empty states. Never a raw enum value, a raw database id, or a fetch-everything-then-filter-in-the-browser pattern.
+  - A support ticket workspace showing the request's details (including the requester's display name, never their email), status, priority, assignment, the same public conversation and Send Message form the requester experience uses, and a simple, human-readable activity history (`src/tickets/activity-labels.ts`) — never raw metadata.
+  - Assignment ("Assign to me" and a department-agent-only selector), status (limited to the valid next statuses from the existing Phase 5 transition rules), and priority controls, each a small, separate server-action form with a pending state, friendly errors, and revalidation of the queue, the workspace, and both requester-facing pages on success.
+  - A closed ticket is enforced as final in the ticket service itself (`src/tickets/ticket-service.ts`): no further comment, assignment, or priority change is accepted regardless of what the UI shows, and both the support workspace and the requester's own ticket page replace their controls with a plain "this request is closed" message.
+  - A small `src/tickets/support-queries.ts` read-only module (queue listing and filter options, ticket lookup by number, active department agents for the assignee selector, activity history) — every query re-checks Phase 4/5 authorization server-side and is scoped in SQL.
+- **Explicit exclusions:** Dashboards, charts, saved views, search, bulk actions, pagination beyond a safe result limit, SLA timers or automatic escalation, internal/private notes, attachments, admin configuration pages, additional roles or departments, email/chat notifications, and any workflow automation that changes status/priority/assignment as a side effect of another action.
+- **Completion gate:** An authorized department agent sees only their own department's active tickets by default, can open one, reply, assign it, and change its status/priority through the documented rules; a requester cannot reach the workspace; a closed ticket rejects every mutation and message, in the service layer as well as the UI.
+- **Status:** No real agents, administrators, or support-workspace data exist. Google Workspace live OAuth acceptance remains deferred exactly as stated in Phase 3 — this phase requested no credentials and added no bypass.
 
 ## Phase 8 — Requester Communication and Internal Notes
 

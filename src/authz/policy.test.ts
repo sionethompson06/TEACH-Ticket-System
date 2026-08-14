@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   authorize,
+  isSupportStaff,
   type AuthorizationAction,
   type ResolvedActor,
   type TicketResourceDescriptor,
@@ -267,6 +268,26 @@ describe("authorize", () => {
       kind: "self_destruct",
     } as unknown as AuthorizationAction;
     expect(authorize(systemAdministrator(), unknownAction)).toBe(false);
+  });
+
+  it("treats an ordinary requester as not support staff", () => {
+    expect(isSupportStaff(requester())).toBe(false);
+  });
+
+  it("treats an IT agent, a Facilities agent, and a both-department agent as support staff", () => {
+    expect(isSupportStaff(itAgent())).toBe(true);
+    expect(isSupportStaff(facilitiesAgent())).toBe(true);
+    expect(isSupportStaff(bothDepartmentsAgent())).toBe(true);
+  });
+
+  it("treats a system administrator as support staff even with no department membership", () => {
+    expect(isSupportStaff(systemAdministrator())).toBe(true);
+  });
+
+  it("treats anonymous, missing, and inactive actors as not support staff", () => {
+    expect(isSupportStaff({ status: "anonymous" })).toBe(false);
+    expect(isSupportStaff({ status: "user_not_found" })).toBe(false);
+    expect(isSupportStaff({ status: "inactive" })).toBe(false);
   });
 
   it("ignores a role or department claim forged onto the resource rather than the actor", () => {

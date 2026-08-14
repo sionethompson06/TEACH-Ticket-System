@@ -1,6 +1,6 @@
 # Local Development — TEACH Ticket System
 
-This document covers local setup and day-to-day development commands, including the Phase 2 database foundation, Phase 3 authentication, the Phase 4 minimal access-control model, the Phase 5 core ticket foundation (categories, tickets, comments, activity, and the server-only ticket service), and the Phase 6 requester-facing experience (`/requests`, `/requests/new`, `/requests/[ticketNumber]`). It does not cover any department-agent workspace, department-manager roles, campus/principal grants, or confidential-access grants — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
+This document covers local setup and day-to-day development commands, including the Phase 2 database foundation, Phase 3 authentication, the Phase 4 minimal access-control model, the Phase 5 core ticket foundation (categories, tickets, comments, activity, and the server-only ticket service), the Phase 6 requester-facing experience (`/requests`, `/requests/new`, `/requests/[ticketNumber]`), and the Phase 7 IT/Facilities support workspace (`/support`, `/support/[ticketNumber]`). It does not cover department-manager roles, campus/principal grants, confidential-access grants, dashboards, or SLA calculations — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
 
 ## Prerequisites
 
@@ -29,7 +29,16 @@ The app starts at **http://localhost:3000**. The root route (`/`) renders a stat
 | `/requests/new`            | **Request Help** — a single-page form (department, category, location, subject, description).             |
 | `/requests/[ticketNumber]` | Ticket detail and conversation (e.g. `/requests/TKT-000001`), with a **Send Message** form at the bottom. |
 
-All three routes require a valid signed-in session — an unauthenticated visitor is redirected to `/sign-in?callbackURL=...` and returns to the page they wanted after signing in. There is still no department-agent workspace, queue view, or admin page (Phase 7+).
+All three routes require a valid signed-in session — an unauthenticated visitor is redirected to `/sign-in?callbackURL=...` and returns to the page they wanted after signing in.
+
+A department agent (IT or Facilities) or system administrator additionally sees a **Support Queue** link and has access to:
+
+| Route                     | Purpose                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `/support`                | **Support Queue** — active tickets for the agent's own department(s), with Department/Location/Status/Assignment filters. |
+| `/support/[ticketNumber]` | The support workspace for one ticket: details, conversation, reply, assignment, status, priority, and activity history.   |
+
+Both require an active user with at least one department membership or system-administrator status — an ordinary requester gets a safe access-denied message at `/support` and a generic not-found page at `/support/[ticketNumber]`, and never sees the Support Queue link at all. There is still no dashboard, SLA timer, internal-notes feature, or admin configuration page (Phase 8+).
 
 ### Request Help and Send Message Behavior
 
@@ -40,14 +49,26 @@ Both the Request Help form (`/requests/new`) and the Send Message form (on a tic
 - On success, the Request Help form redirects to the new ticket's detail page with a friendly confirmation naming the formatted ticket number; the Send Message form clears itself and the conversation updates in place, both via `revalidatePath`.
 - Neither form ever renders a field for requester identity, organization, priority, status, or assignee — those are always set by trusted server-side logic (the resolved actor and the Phase 5 ticket service's defaults), never accepted from form input.
 
+### Support Workspace Behavior (Phase 7)
+
+The support queue's Department/Location/Status/Assignment filters are plain `GET` form fields — no client-side JavaScript is required, so the current filters live entirely in the URL's query string, are bookmarkable, and survive a page refresh. Every filter value is re-validated server-side in `src/tickets/support-queries.ts` against the agent's own authorized departments and the documented status/assignment sets; an invalid or unauthorized value is silently ignored (falling back to its default) rather than erroring. By default only active tickets (Received, Reopened, In progress, Waiting for you) appear, ordered by priority then age — resolved and closed tickets only appear when explicitly filtered in.
+
+The three support controls (assignment, status, priority) are small, separate Server Action forms, following the same pending-state/duplicate-submission-prevention/friendly-error pattern as the Request Help and Send Message forms, and each revalidates the support queue, the support workspace, the requester's My Requests list, and the requester's own ticket detail page on success — so a change is visible everywhere immediately:
+
+- **Assignment** offers a one-click "Assign to me" (which never reads a client-supplied user id — it always uses the resolved actor's own id) and a general assignee `<select>` populated only with active agents of the ticket's own department, plus "Unassigned." `assignTicket()` in the ticket service re-validates the selected id regardless.
+- **Status** only ever offers the valid next statuses for the ticket's current status, computed from the existing `canTransitionTicketStatus` rule (`src/tickets/ticket-status.ts`) — closed remains final; no arbitrary value reaches the service.
+- **Priority** offers every documented priority except the ticket's current one, with a persistent reminder that an active emergency must still follow TEACH emergency procedures, not this form alone.
+
+A closed ticket hides all three controls and the Send Message form, on both `/support/[ticketNumber]` and the requester's own `/requests/[ticketNumber]`, replaced by a plain "this request is closed" message — and the same rule is enforced independently in the ticket service (`addTicketComment`, `updateTicketPriority`, and `assignTicket` all reject a closed ticket), so it holds even if a UI control were ever mistakenly left enabled.
+
 ### Accessibility Approach
 
-The Phase 6 requester pages reuse the existing Tailwind-based visual system (no new UI framework) and follow the same approach as the Phase 3 sign-in/account pages:
+The Phase 6/7 pages reuse the existing Tailwind-based visual system (no new UI framework) and follow the same approach as the Phase 3 sign-in/account pages:
 
 - Every form field has a visible, associated `<label>`; every error message is linked to its field with `aria-describedby` and announced via `role="alert"`.
-- Headings follow a logical order (page `<h1>`, section `<h2>`s) on every page, and interactive elements (links, buttons, radio/select inputs) are reachable and operable by keyboard alone, using the browser's native focus indicators.
-- Status is never conveyed by color alone: the friendly status pill on My Requests and the ticket detail page carries its own text, and a support-team message carries a visible "Support Team" text label rather than relying on a background color to distinguish it from a requester's own message.
-- Buttons and links are sized for comfortable touch targets, and there is no decorative animation, autoplay, or unnecessary motion.
+- Headings follow a logical order (page `<h1>`, section `<h2>`s) on every page, and interactive elements (links, buttons, radio/select inputs, filter forms) are reachable and operable by keyboard alone, using the browser's native focus indicators.
+- Status is never conveyed by color alone: the friendly status pill on My Requests, the requester ticket page, and the support queue/workspace all carry their own text, and a support-team message carries a visible "Support Team" text label (a requester's own message is labeled "Requester" on the support side) rather than relying on a background color to distinguish participants.
+- Buttons and links are sized for comfortable touch targets, and there is no decorative animation, autoplay, or unnecessary motion — the support queue is a practical work list, not a dashboard.
 
 ## Quality Commands
 
@@ -99,7 +120,7 @@ npm run start
 
 ## What This Repository Does Not Yet Include
 
-The application remains intentionally minimal beyond sign-in, the Phase 4 access-control foundation, the Phase 5 ticket data model, and the Phase 6 requester experience. It contains no department-agent workspace or work queue, no assignment/status/priority controls, no internal notes, no admin pages, no SLA/business-calendar calculation, no email notifications, no attachments, no search or reporting, no department-manager role, and no confidential-access grant. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), a minimal Requester/Department-Agent/System-Administrator model exists (Phase 4), a core ticket data model with a server-only ticket service exists (Phase 5, see [`docs/DATABASE.md`](DATABASE.md)), and a requester can sign in, request help, see My Requests, and send a message on their own ticket (Phase 6) — but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work, and no real user, department membership, administrator, ticket, or comment has been created. Later items are addressed in later, separately approved phases.
+The application remains intentionally minimal beyond sign-in, the Phase 4 access-control foundation, the Phase 5 ticket data model, the Phase 6 requester experience, and the Phase 7 support workspace. It contains no dashboards, charts, saved views, search, bulk actions, SLA/business-calendar calculation, internal/private notes, attachments, admin configuration pages, email/chat notifications, department-manager role, or confidential-access grant. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), a minimal Requester/Department-Agent/System-Administrator model exists (Phase 4), a core ticket data model with a server-only ticket service exists (Phase 5, see [`docs/DATABASE.md`](DATABASE.md)), a requester can sign in, request help, see My Requests, and send a message on their own ticket (Phase 6), and a department agent or system administrator can see their department's queue, open a ticket, reply, assign it, and change its status and priority (Phase 7) — but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work, and no real user, department membership, administrator, ticket, or comment has been created. Later items are addressed in later, separately approved phases.
 
 ## Continuous Integration
 

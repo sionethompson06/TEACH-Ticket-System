@@ -26,6 +26,13 @@ import {
   listTicketComments,
   loadTicketFormOptions,
 } from "../tickets/ticket-queries";
+import {
+  getSupportTicketDetailByNumber,
+  listActiveDepartmentAgents,
+  listSupportFilterOptions,
+  listSupportQueueTickets,
+  listTicketActivity,
+} from "../tickets/support-queries";
 import { REFERENCE_ORGANIZATION } from "./reference-data";
 import * as schema from "./schema";
 import {
@@ -1035,6 +1042,790 @@ describe("ticket service", () => {
         expect(itCategoryOrders).toEqual(
           [...itCategoryOrders].sort((a, b) => a - b),
         );
+      });
+    });
+  });
+
+  describe("support workspace queries (Phase 7)", () => {
+    describe("listSupportFilterOptions", () => {
+      it("denies an ordinary requester", async () => {
+        const requester = await createSyntheticUser();
+        const actor = await actorForUser(requester.id);
+        await expect(listSupportFilterOptions(db, actor)).rejects.toThrow();
+      });
+
+      it("offers only the agent's own department to a single-department agent", async () => {
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const actor = await actorForUser(itAgent.id);
+        const options = await listSupportFilterOptions(db, actor);
+        expect(options.departments.map((d) => d.code)).toEqual(["IT"]);
+      });
+
+      it("offers both departments to an agent assigned to both", async () => {
+        const bothAgent = await createSyntheticUser();
+        await db.insert(departmentMemberships).values([
+          {
+            userId: bothAgent.id,
+            departmentId: itDepartmentId,
+            organizationId: REFERENCE_ORGANIZATION.id,
+          },
+          {
+            userId: bothAgent.id,
+            departmentId: facilitiesDepartmentId,
+            organizationId: REFERENCE_ORGANIZATION.id,
+          },
+        ]);
+        const actor = await actorForUser(bothAgent.id);
+        const options = await listSupportFilterOptions(db, actor);
+        expect(options.departments.map((d) => d.code).sort()).toEqual([
+          "FACILITIES",
+          "IT",
+        ]);
+      });
+
+      it("offers both departments to a system administrator", async () => {
+        const admin = await createSyntheticUser();
+        await db
+          .update(user)
+          .set({ isSystemAdministrator: true })
+          .where(eq(user.id, admin.id));
+        const actor = await actorForUser(admin.id);
+        const options = await listSupportFilterOptions(db, actor);
+        expect(options.departments.map((d) => d.code).sort()).toEqual([
+          "FACILITIES",
+          "IT",
+        ]);
+      });
+    });
+
+    describe("listSupportQueueTickets", () => {
+      it("shows active tickets by default and excludes resolved/closed", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+
+        const active = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        const toResolve = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        await updateTicketStatus(db, agentActor, toResolve.id, "resolved");
+        const toClose = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        await updateTicketStatus(db, agentActor, toClose.id, "resolved");
+        await updateTicketStatus(db, agentActor, toClose.id, "closed");
+
+        const result = await listSupportQueueTickets(db, agentActor, {});
+        const ids = result.tickets.map((t) => t.id);
+        expect(ids).toContain(active.id);
+        expect(ids).not.toContain(toResolve.id);
+        expect(ids).not.toContain(toClose.id);
+      });
+
+      it("orders by priority first, then oldest first within the same priority", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+
+        const normalFirst = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        const normalSecond = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        const urgent = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        await updateTicketPriority(db, agentActor, urgent.id, "urgent");
+
+        const result = await listSupportQueueTickets(db, agentActor, {});
+        const orderedIds = result.tickets
+          .map((t) => t.id)
+          .filter((id) =>
+            [normalFirst.id, normalSecond.id, urgent.id].includes(id),
+          );
+        expect(orderedIds).toEqual([
+          urgent.id,
+          normalFirst.id,
+          normalSecond.id,
+        ]);
+      });
+
+      it("shows requester display name, department, and location — not raw ids", async () => {
+        const requester = await createSyntheticUser({
+          name: "Jamie Requester",
+        });
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        const result = await listSupportQueueTickets(db, agentActor, {});
+        const summary = result.tickets.find((t) => t.id === ticket.id);
+        expect(summary?.requesterName).toBe("Jamie Requester");
+        expect(summary?.departmentName).toBe("Information Technology");
+        expect(summary?.assignedAgentName).toBeNull();
+      });
+
+      it("denies an ordinary requester", async () => {
+        const requester = await createSyntheticUser();
+        const actor = await actorForUser(requester.id);
+        await expect(listSupportQueueTickets(db, actor, {})).rejects.toThrow();
+      });
+
+      it("denies an anonymous, missing, or inactive actor", async () => {
+        const anonymous: ResolvedActor = { status: "anonymous" };
+        const missing: ResolvedActor = { status: "user_not_found" };
+        const inactive: ResolvedActor = { status: "inactive" };
+        await expect(
+          listSupportQueueTickets(db, anonymous, {}),
+        ).rejects.toThrow();
+        await expect(
+          listSupportQueueTickets(db, missing, {}),
+        ).rejects.toThrow();
+        await expect(
+          listSupportQueueTickets(db, inactive, {}),
+        ).rejects.toThrow();
+      });
+
+      it("scopes an IT agent to IT tickets only, even without a department filter", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+
+        const itTicket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        const facilitiesTicket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput({
+            departmentId: facilitiesDepartmentId,
+            categoryId: facilitiesCategoryId,
+          }),
+        );
+
+        const result = await listSupportQueueTickets(db, agentActor, {});
+        const ids = result.tickets.map((t) => t.id);
+        expect(ids).toContain(itTicket.id);
+        expect(ids).not.toContain(facilitiesTicket.id);
+      });
+
+      it("scopes a Facilities agent to Facilities tickets only", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const facilitiesAgent = await makeDepartmentAgent(
+          facilitiesDepartmentId,
+        );
+        const agentActor = await actorForUser(facilitiesAgent.id);
+
+        const itTicket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        const facilitiesTicket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput({
+            departmentId: facilitiesDepartmentId,
+            categoryId: facilitiesCategoryId,
+          }),
+        );
+
+        const result = await listSupportQueueTickets(db, agentActor, {});
+        const ids = result.tickets.map((t) => t.id);
+        expect(ids).toContain(facilitiesTicket.id);
+        expect(ids).not.toContain(itTicket.id);
+      });
+
+      it("lets a both-department agent see both departments' tickets", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const bothAgent = await createSyntheticUser();
+        await db.insert(departmentMemberships).values([
+          {
+            userId: bothAgent.id,
+            departmentId: itDepartmentId,
+            organizationId: REFERENCE_ORGANIZATION.id,
+          },
+          {
+            userId: bothAgent.id,
+            departmentId: facilitiesDepartmentId,
+            organizationId: REFERENCE_ORGANIZATION.id,
+          },
+        ]);
+        const agentActor = await actorForUser(bothAgent.id);
+
+        const itTicket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        const facilitiesTicket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput({
+            departmentId: facilitiesDepartmentId,
+            categoryId: facilitiesCategoryId,
+          }),
+        );
+
+        const result = await listSupportQueueTickets(db, agentActor, {});
+        const ids = result.tickets.map((t) => t.id);
+        expect(ids).toContain(itTicket.id);
+        expect(ids).toContain(facilitiesTicket.id);
+      });
+
+      it("lets a system administrator see ordinary tickets across both departments", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const admin = await createSyntheticUser();
+        await db
+          .update(user)
+          .set({ isSystemAdministrator: true })
+          .where(eq(user.id, admin.id));
+        const adminActor = await actorForUser(admin.id);
+
+        const itTicket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        const facilitiesTicket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput({
+            departmentId: facilitiesDepartmentId,
+            categoryId: facilitiesCategoryId,
+          }),
+        );
+
+        const result = await listSupportQueueTickets(db, adminActor, {});
+        const ids = result.tickets.map((t) => t.id);
+        expect(ids).toContain(itTicket.id);
+        expect(ids).toContain(facilitiesTicket.id);
+      });
+
+      it("respects an explicit department filter within the agent's authorized scope", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const bothAgent = await createSyntheticUser();
+        await db.insert(departmentMemberships).values([
+          {
+            userId: bothAgent.id,
+            departmentId: itDepartmentId,
+            organizationId: REFERENCE_ORGANIZATION.id,
+          },
+          {
+            userId: bothAgent.id,
+            departmentId: facilitiesDepartmentId,
+            organizationId: REFERENCE_ORGANIZATION.id,
+          },
+        ]);
+        const agentActor = await actorForUser(bothAgent.id);
+
+        const itTicket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        const facilitiesTicket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput({
+            departmentId: facilitiesDepartmentId,
+            categoryId: facilitiesCategoryId,
+          }),
+        );
+
+        const result = await listSupportQueueTickets(db, agentActor, {
+          department: itDepartmentId,
+        });
+        const ids = result.tickets.map((t) => t.id);
+        expect(ids).toContain(itTicket.id);
+        expect(ids).not.toContain(facilitiesTicket.id);
+        expect(result.filters.departmentId).toBe(itDepartmentId);
+      });
+
+      it("ignores a department filter outside the agent's authorized scope", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+
+        const itTicket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        const result = await listSupportQueueTickets(db, agentActor, {
+          department: facilitiesDepartmentId,
+        });
+        expect(result.filters.departmentId).toBeNull();
+        expect(result.tickets.map((t) => t.id)).toContain(itTicket.id);
+      });
+
+      it("filters by service location", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        const [otherLocation] = await db
+          .select()
+          .from(serviceLocations)
+          .where(eq(serviceLocations.organizationId, REFERENCE_ORGANIZATION.id))
+          .limit(2)
+          .offset(1);
+
+        const atDefaultLocation = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        const atOtherLocation = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput({ serviceLocationId: otherLocation.id }),
+        );
+
+        const result = await listSupportQueueTickets(db, agentActor, {
+          location: otherLocation.id,
+        });
+        const ids = result.tickets.map((t) => t.id);
+        expect(ids).toContain(atOtherLocation.id);
+        expect(ids).not.toContain(atDefaultLocation.id);
+      });
+
+      it("filters by an explicit status, including resolved and closed", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+
+        const resolved = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        await updateTicketStatus(db, agentActor, resolved.id, "resolved");
+        const stillActive = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        const result = await listSupportQueueTickets(db, agentActor, {
+          status: "resolved",
+        });
+        const ids = result.tickets.map((t) => t.id);
+        expect(ids).toContain(resolved.id);
+        expect(ids).not.toContain(stillActive.id);
+      });
+
+      it("ignores an invalid status filter and falls back to the active default", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        const result = await listSupportQueueTickets(db, agentActor, {
+          status: "not_a_real_status",
+        });
+        expect(result.filters.status).toBeNull();
+        expect(result.tickets.map((t) => t.id)).toContain(ticket.id);
+      });
+
+      it("filters to tickets assigned to the current agent with 'mine'", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        const otherAgent = await makeDepartmentAgent(itDepartmentId);
+
+        const mine = await createTicket(db, requesterActor, validCreateInput());
+        await assignTicket(db, agentActor, mine.id, itAgent.id);
+        const notMine = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        await assignTicket(db, agentActor, notMine.id, otherAgent.id);
+
+        const result = await listSupportQueueTickets(db, agentActor, {
+          assignment: "mine",
+        });
+        const ids = result.tickets.map((t) => t.id);
+        expect(ids).toContain(mine.id);
+        expect(ids).not.toContain(notMine.id);
+      });
+
+      it("filters to tickets with no assignee with 'unassigned'", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+
+        const unassigned = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        const assigned = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        await assignTicket(db, agentActor, assigned.id, itAgent.id);
+
+        const result = await listSupportQueueTickets(db, agentActor, {
+          assignment: "unassigned",
+        });
+        const ids = result.tickets.map((t) => t.id);
+        expect(ids).toContain(unassigned.id);
+        expect(ids).not.toContain(assigned.id);
+      });
+
+      it("ignores an invalid assignment filter and falls back to 'all'", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        const result = await listSupportQueueTickets(db, agentActor, {
+          assignment: "not_a_real_filter",
+        });
+        expect(result.filters.assignment).toBe("all");
+        expect(result.tickets.map((t) => t.id)).toContain(ticket.id);
+      });
+
+      it("returns an empty list when no tickets match the filters", async () => {
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+
+        const result = await listSupportQueueTickets(db, agentActor, {
+          assignment: "mine",
+        });
+        expect(result.tickets).toEqual([]);
+      });
+    });
+
+    describe("getSupportTicketDetailByNumber", () => {
+      it("returns detail for an authorized department agent", async () => {
+        const requester = await createSyntheticUser({
+          name: "Jamie Requester",
+        });
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        const detail = await getSupportTicketDetailByNumber(
+          db,
+          agentActor,
+          formatTicketNumber(ticket.ticketNumber),
+        );
+        expect(detail?.id).toBe(ticket.id);
+        expect(detail?.requesterName).toBe("Jamie Requester");
+        expect(detail?.departmentName).toBe("Information Technology");
+      });
+
+      it("returns null for a Facilities agent viewing an IT ticket", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const facilitiesAgent = await makeDepartmentAgent(
+          facilitiesDepartmentId,
+        );
+        const agentActor = await actorForUser(facilitiesAgent.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        expect(
+          await getSupportTicketDetailByNumber(
+            db,
+            agentActor,
+            formatTicketNumber(ticket.ticketNumber),
+          ),
+        ).toBeNull();
+      });
+
+      it("returns null for an ordinary requester, even for their own ticket", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        expect(
+          await getSupportTicketDetailByNumber(
+            db,
+            requesterActor,
+            formatTicketNumber(ticket.ticketNumber),
+          ),
+        ).toBeNull();
+      });
+
+      it("returns null for a malformed ticket number", async () => {
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        expect(
+          await getSupportTicketDetailByNumber(db, agentActor, "nope"),
+        ).toBeNull();
+      });
+
+      it("returns null for a nonexistent ticket number", async () => {
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        expect(
+          await getSupportTicketDetailByNumber(db, agentActor, "TKT-999999"),
+        ).toBeNull();
+      });
+
+      it("fails closed for an inactive or missing actor rather than returning ticket data", async () => {
+        const inactiveUser = await createSyntheticUser({ isActive: false });
+        await db.insert(departmentMemberships).values({
+          userId: inactiveUser.id,
+          departmentId: itDepartmentId,
+          organizationId: REFERENCE_ORGANIZATION.id,
+        });
+        const inactiveActor = await actorForUser(inactiveUser.id);
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        await expect(
+          getSupportTicketDetailByNumber(
+            db,
+            inactiveActor,
+            formatTicketNumber(ticket.ticketNumber),
+          ),
+        ).rejects.toThrow();
+      });
+
+      it("denies cross-organization access even for a system administrator", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        const otherOrgAdmin: ResolvedActor = {
+          status: "active",
+          userId: requester.id,
+          organizationId: "00000000-0000-0000-0000-00000000dead",
+          isSystemAdministrator: true,
+          departmentCodes: [],
+        };
+
+        expect(
+          await getSupportTicketDetailByNumber(
+            db,
+            otherOrgAdmin,
+            formatTicketNumber(ticket.ticketNumber),
+          ),
+        ).toBeNull();
+      });
+    });
+
+    describe("listActiveDepartmentAgents", () => {
+      it("returns only active agents of the ticket's own department", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        const otherItAgent = await makeDepartmentAgent(itDepartmentId);
+        const facilitiesAgent = await makeDepartmentAgent(
+          facilitiesDepartmentId,
+        );
+        const inactiveItAgent = await makeDepartmentAgent(itDepartmentId);
+        await db
+          .update(user)
+          .set({ isActive: false })
+          .where(eq(user.id, inactiveItAgent.id));
+
+        const options = await listActiveDepartmentAgents(
+          db,
+          agentActor,
+          ticket.id,
+        );
+        const ids = options?.map((a) => a.id) ?? [];
+        expect(ids).toContain(itAgent.id);
+        expect(ids).toContain(otherItAgent.id);
+        expect(ids).not.toContain(facilitiesAgent.id);
+        expect(ids).not.toContain(inactiveItAgent.id);
+      });
+
+      it("returns null for an unauthorized agent or a nonexistent ticket", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const facilitiesAgent = await makeDepartmentAgent(
+          facilitiesDepartmentId,
+        );
+        const agentActor = await actorForUser(facilitiesAgent.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        expect(
+          await listActiveDepartmentAgents(db, agentActor, ticket.id),
+        ).toBeNull();
+        expect(
+          await listActiveDepartmentAgents(
+            db,
+            agentActor,
+            "00000000-0000-0000-0000-000000000000",
+          ),
+        ).toBeNull();
+      });
+    });
+
+    describe("listTicketActivity", () => {
+      it("renders friendly, chronological activity text for creation, assignment, status, and priority changes", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await createSyntheticUser({ name: "Jordan Agent" });
+        await db.insert(departmentMemberships).values({
+          userId: itAgent.id,
+          departmentId: itDepartmentId,
+          organizationId: REFERENCE_ORGANIZATION.id,
+        });
+        const agentActor = await actorForUser(itAgent.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        await assignTicket(db, agentActor, ticket.id, itAgent.id);
+        await updateTicketStatus(db, agentActor, ticket.id, "in_progress");
+        await updateTicketPriority(db, agentActor, ticket.id, "urgent");
+
+        const activity = await listTicketActivity(db, agentActor, ticket.id);
+        const descriptions = activity?.map((entry) => entry.description);
+        expect(descriptions).toEqual([
+          "Ticket submitted",
+          "Assigned to Jordan Agent",
+          "Status changed from Received to In progress",
+          "Priority changed from Normal to Urgent",
+        ]);
+      });
+
+      it("returns null for an unauthorized viewer", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const facilitiesAgent = await makeDepartmentAgent(
+          facilitiesDepartmentId,
+        );
+        const agentActor = await actorForUser(facilitiesAgent.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+
+        expect(await listTicketActivity(db, agentActor, ticket.id)).toBeNull();
+      });
+    });
+
+    describe("closed-ticket enforcement", () => {
+      it("rejects a new comment on a closed ticket, from either the requester or an agent", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        await updateTicketStatus(db, agentActor, ticket.id, "resolved");
+        await updateTicketStatus(db, agentActor, ticket.id, "closed");
+
+        await expect(
+          addTicketComment(db, requesterActor, ticket.id, "Reopen please?"),
+        ).rejects.toThrow(TicketValidationError);
+        await expect(
+          addTicketComment(db, agentActor, ticket.id, "Closing note."),
+        ).rejects.toThrow(TicketValidationError);
+      });
+
+      it("rejects reassignment and priority changes on a closed ticket", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        const otherAgent = await makeDepartmentAgent(itDepartmentId);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        await updateTicketStatus(db, agentActor, ticket.id, "resolved");
+        await updateTicketStatus(db, agentActor, ticket.id, "closed");
+
+        await expect(
+          assignTicket(db, agentActor, ticket.id, otherAgent.id),
+        ).rejects.toThrow(TicketValidationError);
+        await expect(
+          updateTicketPriority(db, agentActor, ticket.id, "urgent"),
+        ).rejects.toThrow(TicketValidationError);
       });
     });
   });
