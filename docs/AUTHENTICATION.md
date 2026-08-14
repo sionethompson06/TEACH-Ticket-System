@@ -78,7 +78,11 @@ Better Auth's `account` table can optionally store a provider's access/refresh/I
 | `/sign-in`           | A minimal page: states the `@teachps.org`-only restriction, a single "Continue with Google" action, and a generic denial message on a failed attempt. Never reveals why a specific attempt failed. Renders a safe "Authentication configuration pending" notice instead of a broken sign-in action when the required environment variables are absent. |
 | `/account`           | A minimal, session-gated page: name, email, and the fixed **Requester** role only. Never a dashboard, never ticket data. Unauthenticated or misconfigured requests are redirected to `/sign-in` server-side — the page is never rendered without a validated session. Includes a sign-out action.                                                      |
 
-The home page (`/`) states that Phase 3 authentication is operational and links to `/sign-in` — but only when the required environment variables are present; otherwise it shows the same "configuration pending" notice, never a broken link.
+The home page (`/`) links to `/sign-in` when the required environment variables are present; otherwise it shows the same "configuration pending" notice, never a broken link.
+
+### Post-Sign-In Destination (Phase 6)
+
+`/sign-in` accepts an optional `callbackURL` query parameter (e.g. `/sign-in?callbackURL=/requests/TKT-000001`) naming where to return the user after a successful sign-in — set automatically by every Phase 6 requester page (`src/auth/current-actor.ts`'s `requireActiveActor`) when it redirects an unauthenticated visitor. The value is validated by `resolveSafeCallbackPath` (`src/auth/safe-redirect.ts`): only a same-origin relative path (starting with a single `/`, never `//` or an embedded `://`) is honored; anything else, or a missing parameter, falls back to `/requests` — the normal destination after signing in. This prevents the parameter from being used as an open redirect to an external site.
 
 ## Configuration
 

@@ -26,7 +26,7 @@ export default function Home() {
           </h2>
           <StatusIndicator label="Operational" />
           <p className="max-w-2xl text-base leading-7 text-slate-700 dark:text-slate-300">
-            Phase 3: Google Workspace authentication operational.
+            Sign in, request help, and track your requests are now available.
           </p>
         </section>
 
@@ -38,11 +38,13 @@ export default function Home() {
             About this system
           </h2>
           <p className="max-w-2xl text-base leading-7 text-slate-700 dark:text-slate-300">
-            The TEACH Ticket System will provide a secure, system-wide
-            service-request platform for TEACH Public Schools staff. The initial
-            planned departments are <strong>Information Technology</strong> and{" "}
-            <strong>Facilities</strong>. Staff can now sign in with a verified{" "}
-            <strong>@teachps.org</strong> Google Workspace account.
+            The TEACH Ticket System is a secure, system-wide service-request
+            platform for TEACH Public Schools staff, covering{" "}
+            <strong>Information Technology</strong> and{" "}
+            <strong>Facilities</strong> requests. Staff sign in with a verified{" "}
+            <strong>@teachps.org</strong> Google Workspace account, submit a
+            request, and follow the conversation with the support team until
+            it&apos;s resolved.
           </p>
         </section>
 
@@ -54,9 +56,10 @@ export default function Home() {
             Availability
           </h2>
           <p className="max-w-2xl text-base leading-7 text-slate-700 dark:text-slate-300">
-            Ticket submission is not enabled yet. Signing in creates only a{" "}
-            <strong>Requester</strong> profile — no elevated roles, departments,
-            or ticket functionality exist yet.
+            After signing in, use <strong>Request Help</strong> to submit a
+            request and <strong>My Requests</strong> to see its status and send
+            messages to the support team. Department support-team tools are not
+            built yet.
           </p>
           {configured ? (
             <Link

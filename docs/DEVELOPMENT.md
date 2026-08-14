@@ -1,6 +1,6 @@
 # Local Development — TEACH Ticket System
 
-This document covers local setup and day-to-day development commands, including the Phase 2 database foundation, Phase 3 authentication, the Phase 4 minimal access-control model, and the Phase 5 core ticket foundation (categories, tickets, comments, activity, and the server-only ticket service). It does not cover any ticket user interface, department-manager roles, campus/principal grants, or confidential-access grants — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
+This document covers local setup and day-to-day development commands, including the Phase 2 database foundation, Phase 3 authentication, the Phase 4 minimal access-control model, the Phase 5 core ticket foundation (categories, tickets, comments, activity, and the server-only ticket service), and the Phase 6 requester-facing experience (`/requests`, `/requests/new`, `/requests/[ticketNumber]`). It does not cover any department-agent workspace, department-manager roles, campus/principal grants, or confidential-access grants — none of that exists yet (see [`PHASE_PLAN.md`](PHASE_PLAN.md)).
 
 ## Prerequisites
 
@@ -21,7 +21,33 @@ npm ci
 npm run dev
 ```
 
-The app starts at **http://localhost:3000**. The root route (`/`) renders a static application-status page linking to `/sign-in` when Google Workspace authentication is configured (see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)) — there is no ticket submission page or other ticket user interface yet. The Phase 5 ticket data model and service layer (`src/tickets/`) exist and are exercised only by the automated test suite; no route calls them yet.
+The app starts at **http://localhost:3000**. The root route (`/`) renders a static application-status page linking to `/sign-in` when Google Workspace authentication is configured (see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)). Once signed in, a staff member lands on the requester experience:
+
+| Route                      | Purpose                                                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `/requests`                | **My Requests** — the signed-in user's own tickets only, most recently updated first.                     |
+| `/requests/new`            | **Request Help** — a single-page form (department, category, location, subject, description).             |
+| `/requests/[ticketNumber]` | Ticket detail and conversation (e.g. `/requests/TKT-000001`), with a **Send Message** form at the bottom. |
+
+All three routes require a valid signed-in session — an unauthenticated visitor is redirected to `/sign-in?callbackURL=...` and returns to the page they wanted after signing in. There is still no department-agent workspace, queue view, or admin page (Phase 7+).
+
+### Request Help and Send Message Behavior
+
+Both the Request Help form (`/requests/new`) and the Send Message form (on a ticket's detail page) use a Next.js Server Action (not a REST API route), and share the same behavior:
+
+- The submit button disables itself and shows a pending label ("Submitting request…" / "Sending…") for the duration of the submission, preventing an accidental duplicate submission from a second click.
+- A validation failure (e.g. a missing department or a blank message) returns field-level errors next to the relevant field, and every value the requester already entered is preserved — nothing is cleared or lost.
+- On success, the Request Help form redirects to the new ticket's detail page with a friendly confirmation naming the formatted ticket number; the Send Message form clears itself and the conversation updates in place, both via `revalidatePath`.
+- Neither form ever renders a field for requester identity, organization, priority, status, or assignee — those are always set by trusted server-side logic (the resolved actor and the Phase 5 ticket service's defaults), never accepted from form input.
+
+### Accessibility Approach
+
+The Phase 6 requester pages reuse the existing Tailwind-based visual system (no new UI framework) and follow the same approach as the Phase 3 sign-in/account pages:
+
+- Every form field has a visible, associated `<label>`; every error message is linked to its field with `aria-describedby` and announced via `role="alert"`.
+- Headings follow a logical order (page `<h1>`, section `<h2>`s) on every page, and interactive elements (links, buttons, radio/select inputs) are reachable and operable by keyboard alone, using the browser's native focus indicators.
+- Status is never conveyed by color alone: the friendly status pill on My Requests and the ticket detail page carries its own text, and a support-team message carries a visible "Support Team" text label rather than relying on a background color to distinguish it from a requester's own message.
+- Buttons and links are sized for comfortable touch targets, and there is no decorative animation, autoplay, or unnecessary motion.
 
 ## Quality Commands
 
@@ -73,7 +99,7 @@ npm run start
 
 ## What This Repository Does Not Yet Include
 
-The application remains intentionally minimal beyond sign-in, the Phase 4 access-control foundation, and the Phase 5 ticket data model. It contains no ticket user interface (intake form, My Requests page, ticket detail page, department queue, dashboards, admin pages), no SLA/business-calendar calculation, no email notifications, no attachments, no department-manager role, and no confidential-access grant. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), a minimal Requester/Department-Agent/System-Administrator model exists (Phase 4), and a core ticket data model with a server-only ticket service exists (Phase 5, see [`docs/DATABASE.md`](DATABASE.md)) — but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work, and no real user, department membership, administrator, ticket, or comment has been created. Later items are addressed in later, separately approved phases.
+The application remains intentionally minimal beyond sign-in, the Phase 4 access-control foundation, the Phase 5 ticket data model, and the Phase 6 requester experience. It contains no department-agent workspace or work queue, no assignment/status/priority controls, no internal notes, no admin pages, no SLA/business-calendar calculation, no email notifications, no attachments, no search or reporting, no department-manager role, and no confidential-access grant. A PostgreSQL schema and reference data exist (Phase 2), Google Workspace authentication and first-login provisioning exist (Phase 3, see [`docs/AUTHENTICATION.md`](AUTHENTICATION.md)), a minimal Requester/Department-Agent/System-Administrator model exists (Phase 4), a core ticket data model with a server-only ticket service exists (Phase 5, see [`docs/DATABASE.md`](DATABASE.md)), and a requester can sign in, request help, see My Requests, and send a message on their own ticket (Phase 6) — but no live production database or Google Cloud OAuth client has been provisioned as part of this repository's automated work, and no real user, department membership, administrator, ticket, or comment has been created. Later items are addressed in later, separately approved phases.
 
 ## Continuous Integration
 

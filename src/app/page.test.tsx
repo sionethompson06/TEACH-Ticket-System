@@ -37,22 +37,21 @@ describe("Home page", () => {
       ).toBeInTheDocument();
     });
 
-    it("renders the Phase 3 operational status", () => {
+    it("renders the current operational status", () => {
       render(<Home />);
 
       expect(
         screen.getByText(
-          /phase 3: google workspace authentication operational/i,
+          /sign in, request help, and track your requests are now available/i,
         ),
       ).toBeInTheDocument();
     });
 
-    it("states that ticket submission is not enabled", () => {
+    it("describes Request Help and My Requests availability", () => {
       render(<Home />);
 
-      expect(
-        screen.getByText(/ticket submission is not enabled/i),
-      ).toBeInTheDocument();
+      expect(screen.getAllByText(/request help/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/my requests/i).length).toBeGreaterThan(0);
     });
 
     it("renders a safe configuration-pending state instead of a broken sign-in action", () => {

@@ -7,7 +7,26 @@
 
 const TICKET_NUMBER_PREFIX = "TKT-";
 const TICKET_NUMBER_DIGITS = 6;
+const TICKET_NUMBER_PATTERN = /^TKT-(\d{6,})$/;
 
 export function formatTicketNumber(ticketNumber: number): string {
   return `${TICKET_NUMBER_PREFIX}${String(ticketNumber).padStart(TICKET_NUMBER_DIGITS, "0")}`;
+}
+
+// Strict inverse of formatTicketNumber, used to validate a user-facing URL
+// segment (e.g. "TKT-000001") before it ever reaches a database query.
+// Anything not matching the exact documented format — wrong prefix, too
+// few digits, extra characters, a non-numeric or non-positive value —
+// returns null rather than throwing, so a caller can treat a malformed
+// ticket number identically to "not found" (see docs/DATABASE.md).
+export function parseTicketNumber(formatted: string): number | null {
+  const match = TICKET_NUMBER_PATTERN.exec(formatted);
+  if (!match) {
+    return null;
+  }
+  const value = Number(match[1]);
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    return null;
+  }
+  return value;
 }

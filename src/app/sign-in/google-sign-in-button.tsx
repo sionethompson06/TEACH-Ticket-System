@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { authClient } from "@/auth/auth-client";
 
-export function GoogleSignInButton() {
+export function GoogleSignInButton({ callbackPath }: { callbackPath: string }) {
   const [isPending, setIsPending] = useState(false);
 
   return (
@@ -14,7 +14,7 @@ export function GoogleSignInButton() {
         setIsPending(true);
         void authClient.signIn.social({
           provider: "google",
-          callbackURL: "/account",
+          callbackURL: callbackPath,
           errorCallbackURL: "/sign-in?error=1",
         });
       }}

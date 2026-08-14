@@ -69,12 +69,18 @@ The longer-term authorization vision from `docs/PROJECT_FOUNDATION.md` is preser
 - **Completion gate:** Database constraints and tests confirm ticket numbers are unique, a category must belong to its selected department, cross-organization data is rejected, and blank subject/description/comment content is rejected; authorization tests confirm requester/department-agent/system-administrator ticket access exactly matches the Phase 4 model, including that an IT agent cannot access a Facilities ticket (and vice versa) without a separate membership.
 - **Status:** No real users, tickets, or comments exist. Google Workspace live OAuth acceptance remains deferred exactly as stated in Phase 3 — this phase requested no credentials and added no bypass.
 
-## Phase 6 — Requester-Facing Interface
+## Phase 6 — Requester-Facing Interface ✅ Completed
 
-- **Objective:** Build the requester-facing interface on top of the Phase 5 ticket service: a guided request-help form, a My Requests page, and a ticket detail/conversation view.
-- **Included scope:** Guided intake form using the Phase 5 department/category/service-location data, requested-for/primary-contact model, safety acknowledgment for flagged categories, a ticket detail page showing status/priority/assignee and the public comment thread.
-- **Explicit exclusions:** Department triage/assignment workflow beyond initial routing, dashboards.
-- **Completion gate:** Representative IT and Facilities scenarios route to the correct department/queue with correct recommended priority.
+- **Objective:** Build the requester-facing interface on top of the Phase 5 ticket service: sign in, request help, see My Requests, open a request, read the conversation, and send a message — nothing more.
+- **Included scope:**
+  - Three new routes under `/requests`, all requiring a valid signed-in session (redirecting to `/sign-in` otherwise): `/requests` (My Requests — the requester's own tickets only), `/requests/new` (Request Help — a single-page form), and `/requests/[ticketNumber]` (ticket detail and conversation), addressed by the human-friendly ticket number (e.g. `TKT-000001`) rather than the internal database id.
+  - A single-page Request Help form: IT/Facilities presented as two accessible choices, category filtered by the selected department and loaded from active Phase 5 reference data, a service-location choice, subject, and description. Requester identity, organization, priority, status, and assignee are never requester-selectable — they come from the trusted server-side actor and Phase 5 ticket defaults. A concise emergency-procedures note appears when Facilities is selected. Field-level validation errors and prior input are preserved on a failed submission.
+  - A My Requests page showing only tickets the signed-in user created (even if they are also a department agent — department queues are Phase 7), using plain status/priority labels (see `docs/DATABASE.md`), sorted by most recently updated.
+  - A ticket detail page showing the request's details, current status, and the public conversation, with a Send Message form using the existing Phase 5 public-comment behavior. Requester and support-team messages are visually and textually distinguished (not by color alone). An inaccessible or nonexistent ticket produces an identical, generic not-found result.
+  - A small `src/tickets/ticket-queries.ts` read-only module (listing a requester's own tickets, loading an authorized ticket by ticket number, loading its comments, loading active form options) — every query re-checks Phase 4/5 authorization server-side and is scoped in SQL, never filtered in the browser.
+- **Explicit exclusions:** Any IT/Facilities work queue, agent dashboard, assignment or status/priority controls, internal notes, admin pages, notifications, attachments, search, reporting, or additional roles/departments — all deferred to Phase 7 and later.
+- **Completion gate:** A signed-in requester can submit a request, see it appear on My Requests with a friendly status, open it, and exchange a message with the support team; an unauthenticated visitor is redirected to sign in; a ticket the requester does not own is never distinguishable from a nonexistent one.
+- **Status:** No department-agent interface exists yet (Phase 7). Google Workspace live OAuth acceptance remains deferred exactly as stated in Phase 3 — this phase requested no credentials and added no bypass.
 
 ## Phase 7 — Department Queues, Assignment, Status History, and Resolution
 

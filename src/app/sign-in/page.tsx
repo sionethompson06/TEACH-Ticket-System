@@ -1,4 +1,5 @@
 import { isAuthConfigured } from "@/auth/env";
+import { resolveSafeCallbackPath } from "@/auth/safe-redirect";
 import { GoogleSignInButton } from "./google-sign-in-button";
 
 export default async function SignInPage({
@@ -7,6 +8,9 @@ export default async function SignInPage({
   const resolvedSearchParams = await searchParams;
   const hasError = Boolean(resolvedSearchParams.error);
   const configured = isAuthConfigured();
+  const callbackPath = resolveSafeCallbackPath(
+    resolvedSearchParams.callbackURL,
+  );
 
   return (
     <div className="flex flex-1 flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -35,7 +39,7 @@ export default async function SignInPage({
         )}
 
         {configured ? (
-          <GoogleSignInButton />
+          <GoogleSignInButton callbackPath={callbackPath} />
         ) : (
           <p className="max-w-md rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
             Authentication configuration pending. Sign-in is not available yet.

@@ -20,6 +20,12 @@ import {
   updateTicketPriority,
   updateTicketStatus,
 } from "../tickets/ticket-service";
+import {
+  getTicketDetailByNumber,
+  listMyTickets,
+  listTicketComments,
+  loadTicketFormOptions,
+} from "../tickets/ticket-queries";
 import { REFERENCE_ORGANIZATION } from "./reference-data";
 import * as schema from "./schema";
 import {
@@ -798,6 +804,238 @@ describe("ticket service", () => {
 
       const numbers = [a.ticketNumber, b.ticketNumber, c.ticketNumber];
       expect(new Set(numbers).size).toBe(numbers.length);
+    });
+  });
+
+  describe("requester queries (Phase 6)", () => {
+    describe("listMyTickets", () => {
+      it("returns only the tickets created by the current requester", async () => {
+        const requester = await createSyntheticUser();
+        const otherRequester = await createSyntheticUser();
+        const actor = await actorForUser(requester.id);
+        const otherActor = await actorForUser(otherRequester.id);
+
+        const own = await createTicket(db, actor, validCreateInput());
+        await createTicket(db, otherActor, validCreateInput());
+
+        const results = await listMyTickets(db, actor);
+        expect(results.map((r) => r.ticketNumber)).toEqual([own.ticketNumber]);
+      });
+
+      it("still scopes to only the requester's own tickets even when they are also a department agent", async () => {
+        const requester = await createSyntheticUser();
+        const actor = await actorForUser(requester.id);
+        const own = await createTicket(db, actor, validCreateInput());
+
+        const otherRequester = await createSyntheticUser();
+        const otherActor = await actorForUser(otherRequester.id);
+        const otherTicket = await createTicket(
+          db,
+          otherActor,
+          validCreateInput(),
+        );
+
+        await db.insert(departmentMemberships).values({
+          userId: requester.id,
+          departmentId: itDepartmentId,
+          organizationId: REFERENCE_ORGANIZATION.id,
+        });
+        const agentActor = await actorForUser(requester.id);
+
+        const results = await listMyTickets(db, agentActor);
+        expect(results.map((r) => r.ticketNumber)).toEqual([own.ticketNumber]);
+        expect(results.map((r) => r.ticketNumber)).not.toContain(
+          otherTicket.ticketNumber,
+        );
+      });
+
+      it("sorts by most recently updated first", async () => {
+        const requester = await createSyntheticUser();
+        const actor = await actorForUser(requester.id);
+        const first = await createTicket(db, actor, validCreateInput());
+        const second = await createTicket(db, actor, validCreateInput());
+
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        await updateTicketStatus(db, agentActor, first.id, "in_progress");
+
+        const results = await listMyTickets(db, actor);
+        expect(results[0].ticketNumber).toBe(first.ticketNumber);
+        expect(results[1].ticketNumber).toBe(second.ticketNumber);
+      });
+
+      it("includes friendly department, location, status, and priority data", async () => {
+        const requester = await createSyntheticUser();
+        const actor = await actorForUser(requester.id);
+        await createTicket(db, actor, validCreateInput());
+
+        const [summary] = await listMyTickets(db, actor);
+        expect(summary.departmentName).toBe("Information Technology");
+        expect(summary.status).toBe("submitted");
+        expect(summary.priority).toBe("normal");
+        expect(typeof summary.serviceLocationName).toBe("string");
+      });
+    });
+
+    describe("getTicketDetailByNumber", () => {
+      it("returns the ticket detail for its owning requester", async () => {
+        const requester = await createSyntheticUser();
+        const actor = await actorForUser(requester.id);
+        const ticket = await createTicket(db, actor, validCreateInput());
+
+        const detail = await getTicketDetailByNumber(
+          db,
+          actor,
+          formatTicketNumber(ticket.ticketNumber),
+        );
+        expect(detail?.id).toBe(ticket.id);
+        expect(detail?.departmentName).toBe("Information Technology");
+        expect(detail?.categoryName).toBe("Student and Staff Devices");
+      });
+
+      it("returns null for a malformed ticket number", async () => {
+        const requester = await createSyntheticUser();
+        const actor = await actorForUser(requester.id);
+
+        expect(
+          await getTicketDetailByNumber(db, actor, "not-a-ticket-number"),
+        ).toBeNull();
+      });
+
+      it("returns null for a well-formed but nonexistent ticket number", async () => {
+        const requester = await createSyntheticUser();
+        const actor = await actorForUser(requester.id);
+
+        expect(
+          await getTicketDetailByNumber(db, actor, "TKT-999999"),
+        ).toBeNull();
+      });
+
+      it("returns null for a ticket that exists but the actor is not authorized to view, identically to a nonexistent ticket", async () => {
+        const owner = await createSyntheticUser();
+        const otherRequester = await createSyntheticUser();
+        const ownerActor = await actorForUser(owner.id);
+        const otherActor = await actorForUser(otherRequester.id);
+        const ticket = await createTicket(db, ownerActor, validCreateInput());
+
+        expect(
+          await getTicketDetailByNumber(
+            db,
+            otherActor,
+            formatTicketNumber(ticket.ticketNumber),
+          ),
+        ).toBeNull();
+      });
+
+      it("includes the assigned agent's display name once assigned", async () => {
+        const requester = await createSyntheticUser();
+        const requesterActor = await actorForUser(requester.id);
+        const ticket = await createTicket(
+          db,
+          requesterActor,
+          validCreateInput(),
+        );
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+        await assignTicket(db, agentActor, ticket.id, itAgent.id);
+
+        const detail = await getTicketDetailByNumber(
+          db,
+          requesterActor,
+          formatTicketNumber(ticket.ticketNumber),
+        );
+        expect(detail?.assignedAgentName).toBe(itAgent.name);
+      });
+    });
+
+    describe("listTicketComments", () => {
+      it("returns comments in chronological order with author names and requester attribution", async () => {
+        const requester = await createSyntheticUser();
+        const actor = await actorForUser(requester.id);
+        const ticket = await createTicket(db, actor, validCreateInput());
+        const itAgent = await makeDepartmentAgent(itDepartmentId);
+        const agentActor = await actorForUser(itAgent.id);
+
+        await addTicketComment(db, actor, ticket.id, "First message.");
+        await addTicketComment(db, agentActor, ticket.id, "Second message.");
+
+        const comments = await listTicketComments(db, actor, ticket.id);
+        expect(comments?.map((c) => c.body)).toEqual([
+          "First message.",
+          "Second message.",
+        ]);
+        expect(comments?.[0].isFromRequester).toBe(true);
+        expect(comments?.[0].authorName).toBe(requester.name);
+        expect(comments?.[1].isFromRequester).toBe(false);
+        expect(comments?.[1].authorName).toBe(itAgent.name);
+      });
+
+      it("returns null for an unauthorized actor, without revealing the ticket exists", async () => {
+        const owner = await createSyntheticUser();
+        const otherRequester = await createSyntheticUser();
+        const ownerActor = await actorForUser(owner.id);
+        const otherActor = await actorForUser(otherRequester.id);
+        const ticket = await createTicket(db, ownerActor, validCreateInput());
+
+        expect(await listTicketComments(db, otherActor, ticket.id)).toBeNull();
+      });
+
+      it("returns null for a nonexistent ticket id", async () => {
+        const requester = await createSyntheticUser();
+        const actor = await actorForUser(requester.id);
+
+        expect(
+          await listTicketComments(
+            db,
+            actor,
+            "00000000-0000-0000-0000-000000000000",
+          ),
+        ).toBeNull();
+      });
+    });
+
+    describe("loadTicketFormOptions", () => {
+      it("loads only active departments, categories, and service locations", async () => {
+        const [inactiveCategory] = await db
+          .insert(ticketCategories)
+          .values({
+            organizationId: REFERENCE_ORGANIZATION.id,
+            departmentId: itDepartmentId,
+            code: "TEST_INACTIVE_FORM_OPTION",
+            name: "Test Inactive Form Option",
+            isActive: false,
+            displayOrder: 100,
+          })
+          .returning();
+
+        const options = await loadTicketFormOptions(
+          db,
+          REFERENCE_ORGANIZATION.id,
+        );
+
+        expect(options.departments.map((d) => d.code).sort()).toEqual([
+          "FACILITIES",
+          "IT",
+        ]);
+        expect(
+          options.categories.some((c) => c.id === inactiveCategory.id),
+        ).toBe(false);
+        expect(options.categories.length).toBeGreaterThan(0);
+        expect(options.serviceLocations.length).toBeGreaterThan(0);
+      });
+
+      it("orders categories by their display order", async () => {
+        const options = await loadTicketFormOptions(
+          db,
+          REFERENCE_ORGANIZATION.id,
+        );
+        const itCategoryOrders = options.categories
+          .filter((c) => c.departmentId === itDepartmentId)
+          .map((c) => c.displayOrder);
+        expect(itCategoryOrders).toEqual(
+          [...itCategoryOrders].sort((a, b) => a - b),
+        );
+      });
     });
   });
 });
