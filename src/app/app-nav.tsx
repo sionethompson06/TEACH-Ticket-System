@@ -11,6 +11,26 @@ import { SignOutButton } from "@/app/account/sign-out-button";
 // server-side regardless of what this nav shows.
 export async function AppNav() {
   const actor = await getCurrentActor();
+
+  // Before Phase 9B, every page under this shared layout required an
+  // active actor, so this branch was unreachable. The temporary public
+  // ticket intake form and its confirmation page are the first pages that
+  // render this nav for a visitor without a session — show minimal,
+  // link-free chrome rather than links into /requests, /account, or a
+  // sign-out control that would only redirect them to /sign-in.
+  if (actor.status !== "active") {
+    return (
+      <header className="border-b border-slate-200 dark:border-slate-800">
+        <nav
+          aria-label="Primary"
+          className="flex items-center justify-between gap-4 px-6 py-4 sm:px-10"
+        >
+          <span className="text-base font-bold">TEACH Help Desk</span>
+        </nav>
+      </header>
+    );
+  }
+
   const showSupportQueue = isSupportStaff(actor);
   const showAdministration = authorize(actor, { kind: "administer" });
 

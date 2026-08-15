@@ -43,6 +43,13 @@
       "when": 1786703634224,
       "tag": "0005_phase9a_invite_only_access",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786753803126,
+      "tag": "0006_public_ticket_intake",
+      "breakpoints": true
     }
   ]
 }

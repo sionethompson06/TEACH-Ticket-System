@@ -7,10 +7,12 @@ import {
   schools,
   serviceLocations,
   ticketCategories,
+  user,
 } from "./schema";
 import {
   REFERENCE_DEPARTMENTS,
   REFERENCE_ORGANIZATION,
+  REFERENCE_PUBLIC_INTAKE_USER,
   REFERENCE_SCHOOLS,
   REFERENCE_SERVICE_LOCATIONS,
   REFERENCE_TICKET_CATEGORIES,
@@ -38,6 +40,28 @@ export async function seedReferenceData(db: Database): Promise<void> {
         },
       })
       .returning();
+
+    // Phase 9B: the reserved, inactive "Public Intake" system user (see
+    // REFERENCE_PUBLIC_INTAKE_USER's own comment). Must be inserted after
+    // the organization above, since its organization_id foreign key
+    // requires that row to already exist — this is why the insert lives
+    // here rather than in migration 0006 itself, which runs before this
+    // seed and would otherwise fail that constraint on a fresh database.
+    // onConflictDoNothing keeps this a pure existence check on repeat
+    // runs: it never overwrites is_active or any other column.
+    await tx
+      .insert(user)
+      .values({
+        id: REFERENCE_PUBLIC_INTAKE_USER.id,
+        name: REFERENCE_PUBLIC_INTAKE_USER.name,
+        email: REFERENCE_PUBLIC_INTAKE_USER.email,
+        emailVerified: true,
+        organizationId: organization.id,
+        baseRole: "requester",
+        isActive: false,
+        isSystemAdministrator: false,
+      })
+      .onConflictDoNothing({ target: user.id });
 
     const departmentIdByCode = new Map<string, string>();
     for (const department of REFERENCE_DEPARTMENTS) {

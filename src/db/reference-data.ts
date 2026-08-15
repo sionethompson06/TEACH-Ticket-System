@@ -6,6 +6,12 @@ export interface ReferenceOrganization {
   name: string;
 }
 
+export interface ReservedSystemUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
 export interface ReferenceSchool {
   id: string;
   code: string;
@@ -47,6 +53,25 @@ export const REFERENCE_ORGANIZATION: ReferenceOrganization = {
   id: "c5a6e372-c2b7-4692-82e2-6af9057f7b06",
   code: "TEACHPS",
   name: "TEACH Public Schools",
+};
+
+// Phase 9B: the reserved internal "Public Intake" user. Used only as the
+// database requester/activity-actor for tickets submitted through the
+// temporary public (unauthenticated) intake path — it has no Better Auth
+// account, session, or credential of any kind, and is marked inactive
+// (`is_active = false`) so it can never resolve as an active actor via
+// resolveActor()/authorize(), and can never sign in even if a Google
+// account were ever linked to its email. Its email uses the reserved
+// ".invalid" TLD (RFC 2606) precisely because it must never be a
+// deliverable, real address. This constant must never be regenerated —
+// seedReferenceData() (src/db/seed-reference-data.ts) idempotently inserts
+// this exact id and email after migration 0006 creates the columns it
+// depends on, and every public submission's `tickets.requester_id` refers
+// to it by this fixed id.
+export const REFERENCE_PUBLIC_INTAKE_USER: ReservedSystemUser = {
+  id: "281376e5-c088-43ec-9c31-95a912c14cc8",
+  name: "Public Intake",
+  email: "public-intake@teach-ticket.invalid",
 };
 
 export const REFERENCE_SCHOOLS: ReferenceSchool[] = [

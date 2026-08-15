@@ -85,14 +85,16 @@ describe("database foundation", () => {
     // Exact list — this is also how we prove no SLA, queue, form-field, or
     // other post-MVP table exists, that Phase 5 is limited to exactly four
     // new tables (ticket_categories, tickets, ticket_comments,
-    // ticket_activity), and that Phase 9A adds exactly one new table
-    // (auth_invitations).
+    // ticket_activity), that Phase 9A adds exactly one new table
+    // (auth_invitations), and that Phase 9B adds exactly one new table
+    // (public_intake_rate_limits).
     expect(tableNames).toEqual([
       "account",
       "auth_invitations",
       "department_memberships",
       "departments",
       "organizations",
+      "public_intake_rate_limits",
       "schools",
       "service_locations",
       "session",
@@ -105,11 +107,11 @@ describe("database foundation", () => {
     ]);
   });
 
-  it("applies the 0000 through 0005 migrations, in order", async () => {
+  it("applies the 0000 through 0006 migrations, in order", async () => {
     const result = await db.execute<{ count: number }>(sql`
       select count(*)::int as count from drizzle.__drizzle_migrations
     `);
-    expect(result.rows[0]?.count).toBe(6);
+    expect(result.rows[0]?.count).toBe(7);
   });
 
   it("seeds exactly the canonical reference data with correct relationships and addresses", async () => {
@@ -562,24 +564,30 @@ describe("database foundation", () => {
     ).rejects.toThrow();
   });
 
-  it("seeds no users, no department memberships, and no administrator", async () => {
-    const userCountResult = await db.execute<{ count: number }>(sql`
-      select count(*)::int as count from "user"
-    `);
-    // Non-zero here would mean the seed itself created a user, which it
-    // never should — every user row seen elsewhere in this suite comes
-    // from a test explicitly inserting one, not from seedReferenceData.
+  it("seeds no ordinary users, no department memberships, and no administrator — only the one reserved, inactive Public Intake system user", async () => {
     const membershipRows = await db.select().from(departmentMemberships);
     const adminCountResult = await db.execute<{ count: number }>(sql`
       select count(*)::int as count from "user" where is_system_administrator = true
     `);
+    const activeUserCountResult = await db.execute<{ count: number }>(sql`
+      select count(*)::int as count from "user" where is_active = true
+    `);
+    const reservedUserResult = await db.execute<{ count: number }>(sql`
+      select count(*)::int as count from "user"
+      where id = '281376e5-c088-43ec-9c31-95a912c14cc8' and is_active = false
+    `);
 
     expect(membershipRows).toHaveLength(0);
     expect(adminCountResult.rows[0]?.count).toBe(0);
-    // A nonzero user count here only reflects prior tests in this same
-    // in-memory database, never the seed — asserted precisely by the
-    // membership/admin checks above, which the seed never touches either way.
-    expect(userCountResult.rows[0]?.count).toBeGreaterThanOrEqual(0);
+    // Phase 9B: seedReferenceData() seeds exactly one user row — the
+    // reserved, inactive Public Intake system user — never an ordinary,
+    // active, sign-in-capable user. Every *active* user row seen elsewhere
+    // in this suite comes from a test explicitly inserting one, never from
+    // the seed.
+    expect(reservedUserResult.rows[0]?.count).toBe(1);
+    // A nonzero active-user count here only reflects prior tests in this
+    // same in-memory database, never the seed.
+    expect(activeUserCountResult.rows[0]?.count).toBeGreaterThanOrEqual(0);
   });
 
   it("seeds no ticket, comment, or activity data — only the category catalog", async () => {

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { StatusIndicator } from "@/components/StatusIndicator";
 import { getAuthAccessModeOrNull, isAuthConfigured } from "@/auth/env";
+import { isPublicTicketIntakeEnabled } from "@/public-intake/env";
 
 export default function Home() {
   const configured = isAuthConfigured();
   const isInviteOnly =
     configured && getAuthAccessModeOrNull()?.kind === "invite_only";
+  const publicIntakeEnabled = isPublicTicketIntakeEnabled();
 
   return (
     <div className="flex flex-1 flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -31,6 +33,34 @@ export default function Home() {
             Sign in, request help, and track your requests are now available.
           </p>
         </section>
+
+        {publicIntakeEnabled && (
+          <section
+            aria-labelledby="public-intake-heading"
+            className="flex flex-col gap-3 rounded-lg border border-slate-300 bg-slate-50 px-4 py-4 dark:border-slate-700 dark:bg-slate-900"
+          >
+            <h2 id="public-intake-heading" className="text-lg font-semibold">
+              Submit a ticket — sign-in temporarily not required
+            </h2>
+            <p className="max-w-2xl text-base leading-7 text-slate-700 dark:text-slate-300">
+              While TEACH finishes setting up staff sign-in, anyone with this
+              page can submit an IT or Facilities request without an account.
+              Our support team will contact you by email.
+            </p>
+            <p className="max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+              Please don&apos;t include passwords, Social Security numbers,
+              medical information, or other highly sensitive information in your
+              request. My Requests, Support Queue, and Administration remain
+              unavailable until staff sign-in is configured.
+            </p>
+            <Link
+              href="/requests/new"
+              className="inline-flex w-fit items-center justify-center gap-2 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-700 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            >
+              Submit a ticket
+            </Link>
+          </section>
+        )}
 
         <section
           aria-labelledby="about-heading"

@@ -198,6 +198,62 @@ function checkGoogleOAuthConfiguration(
   return { label, status: "ready" };
 }
 
+const MIN_PUBLIC_INTAKE_SECRET_LENGTH = 32;
+
+// Phase 9B: recognizes the temporary public (unauthenticated) ticket
+// intake mode as a second, independently valid runtime configuration —
+// not merely a variant of the normal authenticated mode. "not configured"
+// here (the flag absent or not exactly "true") is a completely normal,
+// expected state whenever the deployment is using ordinary Google OAuth
+// sign-in instead; it is never itself a reason overall readiness fails.
+function checkPublicTicketIntake(
+  rawFlag: string | undefined,
+  rawRateLimitSecret: string | undefined,
+): ReadinessCheckItem {
+  const label = "Public ticket intake";
+
+  if (rawFlag !== "true") {
+    return {
+      label,
+      status: "not configured",
+      detail:
+        "Temporary public intake mode is off; normal Google OAuth sign-in is required to submit a request.",
+    };
+  }
+
+  if (!rawRateLimitSecret) {
+    return {
+      label,
+      status: "invalid",
+      detail:
+        "PUBLIC_INTAKE_RATE_LIMIT_SECRET is required when public ticket intake is enabled.",
+    };
+  }
+
+  if (rawRateLimitSecret.length < MIN_PUBLIC_INTAKE_SECRET_LENGTH) {
+    return {
+      label,
+      status: "invalid",
+      detail: `PUBLIC_INTAKE_RATE_LIMIT_SECRET must be at least ${MIN_PUBLIC_INTAKE_SECRET_LENGTH} characters.`,
+    };
+  }
+
+  if (containsPlaceholderMarker(rawRateLimitSecret)) {
+    return {
+      label,
+      status: "invalid",
+      detail: "Looks like a placeholder value rather than a generated secret.",
+    };
+  }
+
+  return {
+    label,
+    status: "ready",
+    detail:
+      "Temporary public intake mode is on: anyone with the site URL can submit a ticket without signing in. Staff sign-in, support, and administration remain unavailable until Google OAuth is configured.",
+  };
+}
+
 function checkAccessMode(
   rawMode: string | undefined,
   rawAllowedDomain: string | undefined,
@@ -254,22 +310,51 @@ function checkAccessMode(
 // the same validation the CLI wrapper in src/scripts/readiness-check.ts
 // prints, and it never returns the values it was given, only a status
 // and a safe, generic explanation.
+//
+// Phase 9B: exactly two runtime configurations are valid — normal
+// authenticated mode (Google OAuth + access mode both ready) or temporary
+// public-intake mode (the public-intake item ready) — on top of the
+// database/secret/origin configuration both modes always require. Overall
+// `ready` never implies support/admin UI is usable without Google OAuth:
+// it only means *some* way to submit a ticket is available.
 export function checkReadiness(
   env: Record<string, string | undefined>,
 ): ReadinessResult {
+  const database = checkDatabaseConfiguration(env.DATABASE_URL);
+  const authSecret = checkAuthenticationSecret(env.BETTER_AUTH_SECRET);
+  const origin = checkApplicationOrigin(env.BETTER_AUTH_URL);
+  const googleOAuth = checkGoogleOAuthConfiguration(
+    env.GOOGLE_CLIENT_ID,
+    env.GOOGLE_CLIENT_SECRET,
+  );
+  const accessMode = checkAccessMode(
+    env.AUTH_ACCESS_MODE,
+    env.AUTH_ALLOWED_DOMAIN,
+  );
+  const publicIntake = checkPublicTicketIntake(
+    env.PUBLIC_TICKET_INTAKE,
+    env.PUBLIC_INTAKE_RATE_LIMIT_SECRET,
+  );
+
   const items: ReadinessCheckItem[] = [
-    checkDatabaseConfiguration(env.DATABASE_URL),
-    checkAuthenticationSecret(env.BETTER_AUTH_SECRET),
-    checkApplicationOrigin(env.BETTER_AUTH_URL),
-    checkGoogleOAuthConfiguration(
-      env.GOOGLE_CLIENT_ID,
-      env.GOOGLE_CLIENT_SECRET,
-    ),
-    checkAccessMode(env.AUTH_ACCESS_MODE, env.AUTH_ALLOWED_DOMAIN),
+    database,
+    authSecret,
+    origin,
+    googleOAuth,
+    accessMode,
+    publicIntake,
   ];
+
+  const coreReady =
+    database.status === "ready" &&
+    authSecret.status === "ready" &&
+    origin.status === "ready";
+  const authenticatedModeReady =
+    googleOAuth.status === "ready" && accessMode.status === "ready";
+  const publicIntakeModeReady = publicIntake.status === "ready";
 
   return {
     items,
-    ready: items.every((item) => item.status === "ready"),
+    ready: coreReady && (authenticatedModeReady || publicIntakeModeReady),
   };
 }

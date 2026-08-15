@@ -23,7 +23,7 @@ Both paths share the same database setup. Complete these steps **in order**; eac
    ```
 5. **Verify the database state** — confirm the expected tables exist and the canonical reference data (one organization, three schools, six service locations, two departments and their categories) is present, matching [`DATABASE.md`](DATABASE.md). No department membership, invitation, ticket, or user should exist yet.
 
-Then follow one of the two paths below.
+Then follow one of the two paths below, or — while Google OAuth infrastructure genuinely isn't ready yet — the temporary public-intake path described in [Temporary Public Ticket Intake](#temporary-public-ticket-intake-phase-9b) further down.
 
 ## Path A: Invite-Only Pilot Setup (recommended first deployment)
 
@@ -84,8 +84,27 @@ Then follow one of the two paths below.
 - **Application origin** (`BETTER_AUTH_URL`) — present, a valid absolute origin with no path/query/fragment, `https` in production.
 - **Google OAuth configuration** (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`) — both present together, neither an obvious placeholder.
 - **Access mode** (`AUTH_ACCESS_MODE` / `AUTH_ALLOWED_DOMAIN`) — a valid mode is set; in workspace mode, `AUTH_ALLOWED_DOMAIN` is additionally required and must be a plausible domain. Invite-only mode reports ready without any domain configured, and its detail line states that database invitations control access.
+- **Public ticket intake** (`PUBLIC_TICKET_INTAKE` / `PUBLIC_INTAKE_RATE_LIMIT_SECRET`) — reports "not configured" whenever the flag isn't exactly `true` (the normal state for an ordinary authenticated deployment); once enabled, `PUBLIC_INTAKE_RATE_LIMIT_SECRET` must also be present, at least 32 characters, and not an obvious placeholder.
 
-It exits nonzero if anything is missing or invalid. It is intentionally **not** part of `npm run check` — CI runs without production secrets by design, and this command is meant to be run against a real deployed environment instead. Run `npm run readiness:check -- --help` for full usage.
+Overall readiness requires the database/secret/origin items plus **either** Google OAuth + Access mode both ready **or** Public ticket intake ready — not necessarily every item. A deployment can be fully ready with Google OAuth left unconfigured, as long as public intake is properly configured instead (see [Temporary Public Ticket Intake](#temporary-public-ticket-intake-phase-9b)). It exits nonzero if overall readiness isn't met. It is intentionally **not** part of `npm run check` — CI runs without production secrets by design, and this command is meant to be run against a real deployed environment instead. Run `npm run readiness:check -- --help` for full usage.
+
+## Temporary Public Ticket Intake (Phase 9B)
+
+Use this path when Google OAuth infrastructure genuinely isn't ready yet but real IT/Facilities requests still need to come in. It does **not** replace Path A/B above — staff sign-in, Support Queue, and Administration still require Google OAuth to be configured, either now or later. See [`AUTHENTICATION.md`](AUTHENTICATION.md) for the full security model.
+
+1. **Complete [Shared: Database Setup](#shared-database-setup) above.** `seedReferenceData()` (`npm run db:seed`) creates the reserved, inactive Public Intake system user that every public submission is attributed to — this step is required even though no Google OAuth client exists yet.
+2. **Generate a separate rate-limit secret**, distinct from `BETTER_AUTH_SECRET` (e.g. `openssl rand -base64 32`). Treat it as a secret.
+3. **Add the production environment variables in Vercel**: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `PUBLIC_TICKET_INTAKE=true`, and `PUBLIC_INTAKE_RATE_LIMIT_SECRET=<the secret generated above>`. Leave `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `AUTH_ACCESS_MODE` unset for now — they are not required in this mode.
+4. **Deploy the verified commit.**
+5. **Run the readiness command** against the deployed configuration:
+   ```bash
+   npm run readiness:check
+   ```
+   `Public ticket intake` must read `ready`; `Google OAuth configuration` and `Access mode` are expected to read `not configured` — that combination is still overall `ready` (see [Environment Readiness](#environment-readiness) above).
+6. **Confirm the public flow end-to-end**: the home page shows a "Submit a ticket" call to action with sign-in described as temporarily unavailable; `/requests/new` renders the public form for a signed-out visitor; a fictional submission reaches the confirmation page showing only a ticket number; `/requests`, `/support`, `/admin`, and `/account` still redirect to sign-in exactly as before.
+7. **When Google OAuth infrastructure becomes ready**, follow Path A or B above to configure it — public intake can stay on during the transition (an already-signed-in actor always sees the normal authenticated form) or be turned off immediately by setting `PUBLIC_TICKET_INTAKE=false` and redeploying.
+
+**Rollback:** set `PUBLIC_TICKET_INTAKE=false` (or remove it) and redeploy. This alone restores today's exact behavior — `/requests/new` requires an active authenticated actor again, and the home page reverts to its normal sign-in messaging. No data needs to be deleted or migrated to roll back; existing public tickets remain in place, correctly attributed to the reserved Public Intake user, and remain visible to support staff once they sign in.
 
 ## Pilot Invitations
 

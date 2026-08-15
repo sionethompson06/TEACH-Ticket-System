@@ -122,4 +122,15 @@ describe("AppNav", () => {
       screen.queryByRole("link", { name: /^administration$/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("renders minimal, link-free chrome for a visitor with no active session (Phase 9B public intake)", async () => {
+    getCurrentActor.mockResolvedValue({ status: "anonymous" });
+    render(await AppNav());
+
+    expect(screen.getByText(/teach help desk/i)).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /sign out/i }),
+    ).not.toBeInTheDocument();
+  });
 });

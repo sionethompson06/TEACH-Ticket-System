@@ -26,6 +26,14 @@ describe("checkReadiness", () => {
 
     expect(result.ready).toBe(true);
     for (const item of result.items) {
+      // "Public ticket intake" is deliberately excluded: VALID_ENV
+      // represents normal authenticated mode, where public intake is off
+      // and "not configured" is the correct, expected status — never a
+      // reason overall readiness fails (see the dedicated tests below).
+      if (item.label === "Public ticket intake") {
+        expect(item.status).toBe("not configured");
+        continue;
+      }
       expect(item.status).toBe("ready");
     }
   });
@@ -235,5 +243,146 @@ describe("checkReadiness", () => {
     expect(JSON.stringify(result)).not.toContain(
       "unmistakable-domain-value.example",
     );
+  });
+
+  describe("Public ticket intake (Phase 9B)", () => {
+    const VALID_RATE_LIMIT_SECRET = "b".repeat(32);
+    // A minimal environment representing the temporary public-intake
+    // runtime state: database/secret/origin configured, but no Google
+    // OAuth and no access mode at all — exactly the scenario this mode
+    // exists for.
+    const PUBLIC_INTAKE_ENV: Record<string, string> = {
+      DATABASE_URL: VALID_ENV.DATABASE_URL,
+      BETTER_AUTH_SECRET: VALID_ENV.BETTER_AUTH_SECRET,
+      BETTER_AUTH_URL: VALID_ENV.BETTER_AUTH_URL,
+      PUBLIC_TICKET_INTAKE: "true",
+      PUBLIC_INTAKE_RATE_LIMIT_SECRET: VALID_RATE_LIMIT_SECRET,
+    };
+
+    it("reports not configured when the flag is absent, and this alone never blocks overall readiness", () => {
+      const result = checkReadiness(VALID_ENV);
+
+      const item = result.items.find((i) => i.label === "Public ticket intake");
+      expect(item?.status).toBe("not configured");
+      expect(result.ready).toBe(true);
+    });
+
+    it("reports not configured for any value other than the exact literal 'true'", () => {
+      for (const value of ["TRUE", "1", "yes", " true", ""]) {
+        const result = checkReadiness({
+          ...VALID_ENV,
+          PUBLIC_TICKET_INTAKE: value,
+        });
+        const item = result.items.find(
+          (i) => i.label === "Public ticket intake",
+        );
+        expect(item?.status).toBe("not configured");
+      }
+    });
+
+    it("reports invalid when enabled with no rate-limit secret", () => {
+      const result = checkReadiness({
+        ...VALID_ENV,
+        PUBLIC_TICKET_INTAKE: "true",
+      });
+
+      const item = result.items.find((i) => i.label === "Public ticket intake");
+      expect(item?.status).toBe("invalid");
+    });
+
+    it("reports invalid when the rate-limit secret is shorter than 32 characters", () => {
+      const result = checkReadiness({
+        ...VALID_ENV,
+        PUBLIC_TICKET_INTAKE: "true",
+        PUBLIC_INTAKE_RATE_LIMIT_SECRET: "a".repeat(31),
+      });
+
+      const item = result.items.find((i) => i.label === "Public ticket intake");
+      expect(item?.status).toBe("invalid");
+    });
+
+    it("reports invalid for a placeholder-looking rate-limit secret even if long enough", () => {
+      const result = checkReadiness({
+        ...VALID_ENV,
+        PUBLIC_TICKET_INTAKE: "true",
+        PUBLIC_INTAKE_RATE_LIMIT_SECRET: "changeme".repeat(5),
+      });
+
+      const item = result.items.find((i) => i.label === "Public ticket intake");
+      expect(item?.status).toBe("invalid");
+    });
+
+    it("reports ready when enabled with a valid rate-limit secret", () => {
+      const result = checkReadiness({
+        ...VALID_ENV,
+        PUBLIC_TICKET_INTAKE: "true",
+        PUBLIC_INTAKE_RATE_LIMIT_SECRET: VALID_RATE_LIMIT_SECRET,
+      });
+
+      const item = result.items.find((i) => i.label === "Public ticket intake");
+      expect(item?.status).toBe("ready");
+    });
+
+    it("reports overall ready for database/secret/origin plus a valid public-intake configuration, with no Google OAuth or access mode configured", () => {
+      const result = checkReadiness(PUBLIC_INTAKE_ENV);
+
+      expect(result.ready).toBe(true);
+      const googleOAuthItem = result.items.find(
+        (i) => i.label === "Google OAuth configuration",
+      );
+      const accessModeItem = result.items.find(
+        (i) => i.label === "Access mode",
+      );
+      expect(googleOAuthItem?.status).toBe("not configured");
+      expect(accessModeItem?.status).toBe("not configured");
+    });
+
+    it("reports overall not-ready when public intake is invalid and Google OAuth/access mode are also unconfigured", () => {
+      const result = checkReadiness({
+        DATABASE_URL: VALID_ENV.DATABASE_URL,
+        BETTER_AUTH_SECRET: VALID_ENV.BETTER_AUTH_SECRET,
+        BETTER_AUTH_URL: VALID_ENV.BETTER_AUTH_URL,
+        PUBLIC_TICKET_INTAKE: "true",
+        // No PUBLIC_INTAKE_RATE_LIMIT_SECRET — fails closed.
+      });
+
+      expect(result.ready).toBe(false);
+    });
+
+    it("reports overall ready when both Google OAuth/access mode and public intake are fully configured together", () => {
+      const result = checkReadiness({
+        ...VALID_ENV,
+        PUBLIC_TICKET_INTAKE: "true",
+        PUBLIC_INTAKE_RATE_LIMIT_SECRET: VALID_RATE_LIMIT_SECRET,
+      });
+
+      expect(result.ready).toBe(true);
+      const item = result.items.find((i) => i.label === "Public ticket intake");
+      expect(item?.status).toBe("ready");
+    });
+
+    it("never echoes the configured rate-limit secret value in the result", () => {
+      const result = checkReadiness({
+        ...VALID_ENV,
+        PUBLIC_TICKET_INTAKE: "true",
+        PUBLIC_INTAKE_RATE_LIMIT_SECRET: "unmistakable-rate-limit-secret-000",
+      });
+
+      expect(JSON.stringify(result)).not.toContain(
+        "unmistakable-rate-limit-secret-000",
+      );
+    });
+
+    it("still requires the core database/secret/origin configuration even in public-intake mode", () => {
+      const result = checkReadiness({
+        BETTER_AUTH_SECRET: VALID_ENV.BETTER_AUTH_SECRET,
+        BETTER_AUTH_URL: VALID_ENV.BETTER_AUTH_URL,
+        PUBLIC_TICKET_INTAKE: "true",
+        PUBLIC_INTAKE_RATE_LIMIT_SECRET: VALID_RATE_LIMIT_SECRET,
+        // No DATABASE_URL.
+      });
+
+      expect(result.ready).toBe(false);
+    });
   });
 });

@@ -9,3 +9,4 @@ export * from "./ticket-categories";
 export * from "./tickets";
 export * from "./ticket-comments";
 export * from "./ticket-activity";
+export * from "./public-intake-rate-limits";

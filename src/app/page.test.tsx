@@ -10,6 +10,7 @@ const AUTH_ENV_KEYS = [
   "DATABASE_URL",
   "AUTH_ACCESS_MODE",
   "AUTH_ALLOWED_DOMAIN",
+  "PUBLIC_TICKET_INTAKE",
 ] as const;
 
 function clearAuthEnv() {
@@ -109,6 +110,67 @@ describe("Home page", () => {
       render(<Home />);
 
       expect(screen.getByText(/@teachps\.org/i)).toBeInTheDocument();
+    });
+  });
+
+  describe("with public ticket intake enabled and no authentication configured", () => {
+    beforeEach(() => {
+      clearAuthEnv();
+      process.env.PUBLIC_TICKET_INTAKE = "true";
+    });
+
+    it("shows a Submit a ticket call to action linking to /requests/new", () => {
+      render(<Home />);
+
+      expect(
+        screen.getByRole("link", { name: /submit a ticket/i }),
+      ).toHaveAttribute("href", "/requests/new");
+    });
+
+    it("explains sign-in is temporarily not required", () => {
+      render(<Home />);
+
+      expect(
+        screen.getByText(/sign-in temporarily not required/i),
+      ).toBeInTheDocument();
+    });
+
+    it("includes a privacy warning about sensitive information", () => {
+      render(<Home />);
+
+      expect(screen.getByText(/social security numbers/i)).toBeInTheDocument();
+    });
+
+    it("still describes My Requests, Support Queue, and Administration as unavailable", () => {
+      render(<Home />);
+
+      expect(
+        screen.getByText(
+          /my requests, support queue, and administration remain unavailable/i,
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("still shows the authentication configuration pending notice", () => {
+      render(<Home />);
+
+      expect(
+        screen.getByText(/authentication configuration pending/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("with public ticket intake disabled (default)", () => {
+    beforeEach(() => {
+      clearAuthEnv();
+    });
+
+    it("never shows the Submit a ticket call to action", () => {
+      render(<Home />);
+
+      expect(
+        screen.queryByRole("link", { name: /submit a ticket/i }),
+      ).not.toBeInTheDocument();
     });
   });
 });

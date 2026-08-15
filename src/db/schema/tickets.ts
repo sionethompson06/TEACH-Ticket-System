@@ -13,6 +13,8 @@ import {
 } from "drizzle-orm/pg-core";
 import {
   MAX_DESCRIPTION_LENGTH,
+  MAX_PUBLIC_REQUESTER_EMAIL_LENGTH,
+  MAX_PUBLIC_REQUESTER_NAME_LENGTH,
   MAX_SUBJECT_LENGTH,
 } from "../../tickets/limits";
 import {
@@ -76,6 +78,21 @@ export const tickets = pgTable(
       .defaultNow(),
     resolvedAt: timestamp("resolved_at", { withTimezone: true }),
     closedAt: timestamp("closed_at", { withTimezone: true }),
+    // Phase 9B: distinguishes a ticket submitted through the ordinary
+    // authenticated flow from one submitted through the temporary public
+    // (unauthenticated) intake path. Existing tickets default to
+    // "authenticated" — the only value that ever existed before this
+    // column was added.
+    submissionSource: text("submission_source")
+      .notNull()
+      .default("authenticated"),
+    // Snapshots only, captured at submission time, so support staff can
+    // contact a public requester later — never the identity of an
+    // application user, and never exposed on the public confirmation page.
+    // Null for every authenticated ticket; required (by the CHECK below)
+    // for every public one.
+    publicRequesterName: text("public_requester_name"),
+    publicRequesterEmail: text("public_requester_email"),
   },
   (table) => [
     // Composite unique target so ticket_comments and ticket_activity can
@@ -93,6 +110,33 @@ export const tickets = pgTable(
     check(
       "tickets_description_not_blank_check",
       sql`btrim(${table.description}) <> '' AND char_length(${table.description}) <= ${sql.raw(String(MAX_DESCRIPTION_LENGTH))}`,
+    ),
+    check(
+      "tickets_submission_source_check",
+      sql`${table.submissionSource} IN ('authenticated', 'public')`,
+    ),
+    // Ties the two public-requester snapshot columns to submission_source:
+    // a public ticket must carry a non-blank name and email snapshot
+    // (within their length limits); an authenticated ticket must carry
+    // neither. This holds even against a direct database write, not just
+    // the public-intake service's own validation.
+    check(
+      "tickets_public_requester_snapshot_check",
+      sql`(
+        ${table.submissionSource} = 'public'
+        AND ${table.publicRequesterName} IS NOT NULL
+        AND btrim(${table.publicRequesterName}) <> ''
+        AND char_length(${table.publicRequesterName}) <= ${sql.raw(String(MAX_PUBLIC_REQUESTER_NAME_LENGTH))}
+        AND ${table.publicRequesterEmail} IS NOT NULL
+        AND btrim(${table.publicRequesterEmail}) <> ''
+        AND char_length(${table.publicRequesterEmail}) <= ${sql.raw(String(MAX_PUBLIC_REQUESTER_EMAIL_LENGTH))}
+        AND ${table.publicRequesterEmail} = lower(${table.publicRequesterEmail})
+        AND ${table.publicRequesterEmail} ~ '^[^@[:space:]]+@[^@[:space:]]+$'
+      ) OR (
+        ${table.submissionSource} = 'authenticated'
+        AND ${table.publicRequesterName} IS NULL
+        AND ${table.publicRequesterEmail} IS NULL
+      )`,
     ),
     // A ticket's department must belong to its own organization.
     foreignKey({

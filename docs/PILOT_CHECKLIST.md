@@ -25,6 +25,19 @@ Check the items under whichever access mode this deployment is running (see [`DE
 - [ ] Sign Out works and ends the session.
 - [ ] Visiting a protected page while signed out redirects to sign-in and returns to the original page afterward.
 
+## Temporary Public Ticket Intake (Phase 9B, only if `PUBLIC_TICKET_INTAKE=true`)
+
+Skip this section entirely if public ticket intake is not enabled for this deployment.
+
+- [ ] A signed-out visitor can open `/requests/new` and see the public form, with no sign-in required.
+- [ ] A fictional public submission (with a fictional name/email) succeeds and lands on a confirmation page showing only a ticket number — no requester name, email, or ticket details.
+- [ ] The confirmation page states the support team will follow up by email and never claims the request can be tracked or reopened from that page.
+- [ ] Submitting a sixth request from the same browser/network within an hour is rejected with a generic message.
+- [ ] `/requests`, `/requests/[ticketNumber]`, `/support`, `/admin`, and `/account` still redirect a signed-out visitor to sign-in — none of them became public.
+- [ ] The home page shows a clear "Submit a ticket" action, explains sign-in is temporarily not required, and still describes My Requests, Support Queue, and Administration as unavailable.
+- [ ] The home page and the public form both warn against including passwords, Social Security numbers, medical information, or other highly sensitive information.
+- [ ] Once a system administrator signs in (after Google OAuth is configured), a publicly submitted ticket is visible in the appropriate department's Support Queue like any other ticket.
+
 ## Requester Workflow
 
 - [ ] A fictional IT request can be submitted successfully.
